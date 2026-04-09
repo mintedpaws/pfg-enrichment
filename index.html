@@ -275,6 +275,8 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     <div class="hd"></div>
     <div class="kf"><label>Anthropic Key</label><input type="password" id="cfg-ant" placeholder="sk-ant-api03-..." oninput="saveAntKey()"/></div>
     <div id="cdot"></div>
+    <div class="kf"><label>Instantly Key</label><input type="password" id="cfg-inst" placeholder="inst_..." oninput="saveInstKey()"/></div>
+    <div id="inst-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:all .3s"></div>
     <div class="hdr-user">
       <span class="user-email" id="user-email"></span>
       <button class="btn btn-g btn-sm" onclick="signOut()">Sign Out</button>
@@ -285,6 +287,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     <button class="nb" data-tab="companies">Companies <span class="cnt" id="nb-co">0</span></button>
     <button class="nb" data-tab="contacts">Contacts <span class="cnt" id="nb-ct">0</span></button>
     <button class="nb" data-tab="campaigns">Campaigns <span class="cnt" id="nb-camp">0</span></button>
+    <button class="nb" data-tab="instantly">Instantly</button>
     <button class="nb" data-tab="export">Export</button>
   </nav>
   <main>
@@ -293,14 +296,14 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
   <div class="tab active" id="tab-dash">
     <div class="sh"><h2>// Overview</h2><button class="btn btn-g btn-sm" onclick="loadDash()">↻ Refresh</button></div>
     <div class="sg">
-      <div class="sc"><div class="l">Companies</div><div class="v o" id="st-co">—</div></div>
-      <div class="sc"><div class="l">Classified</div><div class="v g" id="st-done">—</div></div>
-      <div class="sc"><div class="l">Needs Review</div><div class="v y" id="st-rv">—</div></div>
-      <div class="sc"><div class="l">Pending</div><div class="v" id="st-pend">—</div></div>
-      <div class="sc"><div class="l">Contacts</div><div class="v b" id="st-ct">—</div></div>
-      <div class="sc"><div class="l">Matched</div><div class="v g" id="st-match">—</div></div>
-      <div class="sc"><div class="l">Assigned</div><div class="v b" id="st-assigned">—</div></div>
-      <div class="sc"><div class="l">Missing Contact</div><div class="v r" id="st-missing">—</div></div>
+      <div class="sc" style="cursor:pointer" onclick="quickFilter('')" title="Browse all"><div class="l">Companies</div><div class="v o" id="st-co">—</div></div>
+      <div class="sc" style="cursor:pointer" onclick="quickFilter('done')" title="Browse classified"><div class="l">Classified</div><div class="v g" id="st-done">—</div></div>
+      <div class="sc" style="cursor:pointer" onclick="quickFilter('needs_review')" title="Browse needs review"><div class="l">Needs Review</div><div class="v y" id="st-rv">—</div></div>
+      <div class="sc" style="cursor:pointer" onclick="quickFilter('pending')" title="Browse pending"><div class="l">Pending</div><div class="v" id="st-pend">—</div></div>
+      <div class="sc" style="cursor:pointer" onclick="switchTab('contacts')" title="Go to contacts"><div class="l">Contacts</div><div class="v b" id="st-ct">—</div></div>
+      <div class="sc" style="cursor:pointer" onclick="switchTab('contacts')" title="Go to contacts"><div class="l">Matched</div><div class="v g" id="st-match">—</div></div>
+      <div class="sc" style="cursor:pointer" onclick="switchTab('campaigns')" title="Go to campaigns"><div class="l">Assigned</div><div class="v b" id="st-assigned">—</div></div>
+      <div class="sc" style="cursor:pointer" onclick="switchTab('contacts');setTimeout(loadMissing,300)" title="Find missing contacts"><div class="l">Missing Contact</div><div class="v r" id="st-missing">—</div></div>
     </div>
     <div class="sh"><h2>// Vertical Breakdown</h2></div>
     <div class="sg" id="vert-sg"></div>
@@ -537,6 +540,35 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     </div>
   </div>
 
+  <!-- INSTANTLY -->
+  <div class="tab" id="tab-instantly">
+    <div class="card">
+      <div class="card-title">Suppression Sync</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Pulls all bounced, unsubscribed, and opted-out contacts from every Instantly campaign and adds them to your suppression list automatically. Run this before every export.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-o" onclick="instSyncSuppression()">⟳ Sync Suppression from Instantly</button>
+        <button class="btn btn-g btn-sm" onclick="instCheckContacted(90)">Flag Contacted &lt;90 days</button>
+        <span id="inst-sync-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Campaign Stats</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+        <button class="btn btn-g btn-sm" onclick="instLoadCampaigns()">Load Campaigns</button>
+        <span id="inst-camp-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+      </div>
+      <div id="inst-camp-list"><div class="empty">Click Load to pull live campaign stats from Instantly.</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Inbox Health</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+        <button class="btn btn-g btn-sm" onclick="instLoadInboxes()">Load Inboxes</button>
+        <span id="inst-inbox-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+      </div>
+      <div id="inst-inbox-grid"><div class="empty">Click Load to pull inbox health from Instantly.</div></div>
+    </div>
+  </div>
+
   <!-- EXPORT -->
   <div class="tab" id="tab-export">
     <div class="card">
@@ -740,8 +772,9 @@ let selectedRows=new Set(); // for bulk actions
    INIT
 ══════════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', async () => {
-  const url=localStorage.getItem('sb_url'), key=localStorage.getItem('sb_key'), ant=sessionStorage.getItem('ant_key');
+  const url=localStorage.getItem('sb_url'), key=localStorage.getItem('sb_key'), ant=sessionStorage.getItem('ant_key'), inst=sessionStorage.getItem('inst_key');
   if(ant){document.getElementById('cfg-ant').value=ant;}
+  if(inst){document.getElementById('cfg-inst').value=inst;saveInstKey();}
   populateStateFilter();
   if(!url||!key){showScreen('config');return;}
   try{
@@ -814,6 +847,181 @@ async function submitAuth(){
 }
 async function signOut(){await sbClient?.auth.signOut();currentUser=null;sessionStorage.removeItem('ant_key');showScreen('auth');toast('Signed out','info');}
 function saveAntKey(){const k=document.getElementById('cfg-ant').value.trim();if(k)sessionStorage.setItem('ant_key',k);}
+function saveInstKey(){
+  const k=document.getElementById('cfg-inst').value.trim();
+  if(k){sessionStorage.setItem('inst_key',k);document.getElementById('inst-dot').style.cssText='width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 7px var(--green);flex-shrink:0';}
+  else{document.getElementById('inst-dot').style.cssText='width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0';}
+}
+
+/* ── QUICK FILTER (stat card clicks) ── */
+function quickFilter(status){
+  // Switch to dashboard, load browse with filter
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.nb[data-tab="dash"]').classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-dash').classList.add('active');
+  if(status) document.getElementById('br-status').value=status;
+  else document.getElementById('br-status').value='';
+  if(!allBrowse.length) loadBrowse();
+  else filterBrowse();
+  setTimeout(()=>document.getElementById('br-table').scrollIntoView({behavior:'smooth',block:'start'}),100);
+}
+function switchTab(name){
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.nb[data-tab="${name}"]`).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='campaigns')loadCampaigns();
+}
+
+/* ══════════════════════════════════════════
+   INSTANTLY API
+══════════════════════════════════════════ */
+async function instFetch(path,params={}){
+  const key=sessionStorage.getItem('inst_key');
+  if(!key){toast('Add Instantly API key in the header first','err');return null;}
+  const url=new URL('https://api.instantly.ai'+path);
+  Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
+  try{
+    const resp=await fetch(url.toString(),{headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'}});
+    if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error?.message||`HTTP ${resp.status}`);}
+    return resp.json();
+  }catch(e){toast('Instantly API: '+e.message,'err');return null;}
+}
+
+async function instLoadCampaigns(){
+  const st=document.getElementById('inst-camp-st');
+  st.textContent='Loading...';
+  const data=await instFetch('/api/v2/campaigns',{limit:100,status:'all'});
+  if(!data){st.textContent='';return;}
+  const camps=data.items||data||[];
+  st.textContent=`${camps.length} campaigns`;
+  const el=document.getElementById('inst-camp-list');
+  if(!camps.length){el.innerHTML='<div class="empty">No campaigns found.</div>';return;}
+
+  // Load analytics for each campaign
+  el.innerHTML='<div style="color:var(--muted);font-family:var(--mono);font-size:11px;padding:8px">Loading analytics...</div>';
+  const withStats=await Promise.all(camps.map(async c=>{
+    const stats=await instFetch(`/api/v2/campaigns/${c.id}/analytics/overview`).catch(()=>null);
+    return{...c,stats};
+  }));
+
+  el.innerHTML=withStats.map(c=>{
+    const s=c.stats||{};
+    const sent=s.total_sent||s.emails_sent||0;
+    const opens=s.open_count||0;
+    const replies=s.reply_count||0;
+    const bounces=s.bounce_count||0;
+    const openPct=sent>0?Math.round(opens/sent*100):0;
+    const replyPct=sent>0?Math.round(replies/sent*100):0;
+    const statusColor=c.status==='active'?'var(--green)':c.status==='paused'?'var(--yellow)':'var(--muted)';
+    return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:3px">${esc(c.name||'Unnamed')}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:${statusColor}">${c.status||'unknown'}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,70px);gap:8px;text-align:center">
+          <div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--text)">${sent.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">SENT</div></div>
+          <div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--blue)">${openPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">OPENS</div></div>
+          <div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--green)">${replyPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">REPLIES</div></div>
+          <div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--red)">${bounces}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">BOUNCES</div></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function instLoadInboxes(){
+  const st=document.getElementById('inst-inbox-st');
+  st.textContent='Loading...';
+  const data=await instFetch('/api/v2/accounts',{limit:200});
+  if(!data){st.textContent='';return;}
+  const inboxes=data.items||data||[];
+  st.textContent=`${inboxes.length} inboxes`;
+  const el=document.getElementById('inst-inbox-grid');
+  if(!inboxes.length){el.innerHTML='<div class="empty">No inboxes found.</div>';return;}
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
+    ${inboxes.map(inbox=>{
+      const warmup=inbox.warmup_status||inbox.warmup?.status||'unknown';
+      const health=inbox.health_score||inbox.reputation_score||'—';
+      const dailyUsed=inbox.daily_limit_used||inbox.sent_today||0;
+      const dailyLimit=inbox.daily_limit||50;
+      const pct=dailyLimit>0?Math.round(dailyUsed/dailyLimit*100):0;
+      const warmupColor=warmup==='active'||warmup==='enabled'?'var(--green)':warmup==='paused'?'var(--yellow)':'var(--muted)';
+      return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:12px">
+        <div style="font-family:var(--mono);font-size:11px;font-weight:700;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(inbox.email||inbox.address||'—')}</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px">
+          <span>Warmup: <span style="color:${warmupColor}">${warmup}</span></span>
+          ${health!=='—'?`<span>Health: <strong style="color:var(--text)">${health}</strong></span>`:''}
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">${dailyUsed}/${dailyLimit} today</div>
+        <div style="height:3px;background:var(--s4);border-radius:2px"><div style="height:100%;width:${pct}%;background:${pct>80?'var(--red)':pct>50?'var(--yellow)':'var(--green)'};border-radius:2px"></div></div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+async function instSyncSuppression(){
+  const st=document.getElementById('inst-sync-st');
+  st.textContent='Fetching from Instantly...';
+  // Pull all contacts with terminal statuses
+  let allLeads=[],startingAfter=null,page=0;
+  const statuses=['bounced','unsubscribed','opted_out'];
+  for(const status of statuses){
+    startingAfter=null;
+    for(let i=0;i<20;i++){// max 20 pages per status
+      const params={limit:100,contact_status:status};
+      if(startingAfter)params.starting_after=startingAfter;
+      const data=await instFetch('/api/v2/leads',params);
+      if(!data)break;
+      const items=data.items||[];
+      allLeads.push(...items.map(l=>({value:(l.email||'').toLowerCase(),type:'email',reason:status})));
+      if(!data.next_starting_after||items.length<100)break;
+      startingAfter=data.next_starting_after;
+    }
+    st.textContent=`Fetched ${allLeads.length} ${status}...`;
+  }
+  if(!allLeads.length){st.textContent='No bounced/unsubscribed contacts found.';return;}
+  // Deduplicate and insert to suppression table
+  const unique=[...new Map(allLeads.map(l=>[l.value,l])).values()].filter(l=>l.value);
+  // Check existing
+  const{data:existing}=await sbClient.from('suppression').select('value');
+  const existSet=new Set((existing||[]).map(r=>r.value));
+  const toAdd=unique.filter(l=>!existSet.has(l.value));
+  if(toAdd.length){
+    for(let i=0;i<toAdd.length;i+=500)await sbClient.from('suppression').insert(toAdd.slice(i,i+500));
+  }
+  st.textContent=`✓ ${toAdd.length} new suppression entries added (${unique.length} total from Instantly)`;
+  toast(`Suppression synced — ${toAdd.length} new entries`,'ok');
+  loadSuppressionStats();
+}
+
+async function instCheckContacted(days=90){
+  const st=document.getElementById('inst-sync-st');
+  st.textContent=`Checking contacts sent to in last ${days} days...`;
+  const cutoff=new Date(Date.now()-days*24*60*60*1000).toISOString();
+  let allLeads=[],startingAfter=null;
+  for(let i=0;i<50;i++){
+    const params={limit:100,contact_status:'active'};
+    if(startingAfter)params.starting_after=startingAfter;
+    const data=await instFetch('/api/v2/leads',params);
+    if(!data)break;
+    const items=(data.items||[]).filter(l=>l.last_contacted_at&&l.last_contacted_at>cutoff);
+    allLeads.push(...items.map(l=>(l.email||'').toLowerCase()).filter(Boolean));
+    if(!data.next_starting_after||(data.items||[]).length<100)break;
+    startingAfter=data.next_starting_after;
+  }
+  if(!allLeads.length){st.textContent=`No active contacts found in last ${days} days.`;return;}
+  // Add to suppression as "recently_contacted"
+  const{data:existing}=await sbClient.from('suppression').select('value');
+  const existSet=new Set((existing||[]).map(r=>r.value));
+  const toAdd=[...new Set(allLeads)].filter(e=>!existSet.has(e)).map(e=>({value:e,type:'email',reason:`contacted_within_${days}d`}));
+  if(toAdd.length){for(let i=0;i<toAdd.length;i+=500)await sbClient.from('suppression').insert(toAdd.slice(i,i+500));}
+  st.textContent=`✓ ${toAdd.length} recently-contacted emails flagged (${days}-day window)`;
+  toast(`${toAdd.length} recently contacted flagged`,'ok');
+  loadSuppressionStats();
+}
 
 /* ══════════════════════════════════════════
    NAV
@@ -825,6 +1033,7 @@ function setupNav(){
       document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
       if(btn.dataset.tab==='dash')loadDash();
       if(btn.dataset.tab==='campaigns')loadCampaigns();
+      if(btn.dataset.tab==='instantly'){instLoadCampaigns();instLoadInboxes();}
     });
   });
 }
