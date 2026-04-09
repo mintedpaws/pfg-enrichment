@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PFG Lead Enrichment</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#07090d;--s1:#0d1117;--s2:#121820;--s3:#18212c;--s4:#1e2a37;
+  --bd:#222e3c;--bd2:#2d3f52;
+  --text:#cdd9e5;--muted:#4d6478;--muted2:#2a3a4a;
+  --accent:#f97316;--blue:#3b82f6;--green:#22c55e;
+  --yellow:#eab308;--red:#ef4444;--cyan:#06b6d4;--purple:#a855f7;
+  --mono:'JetBrains Mono',monospace;--sans:'DM Sans',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--s1);}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px;}
+
+/* ── GATE ── */
+.gate{display:none;align-items:center;justify-content:center;height:100vh;padding:20px;}
+.gate.show{display:flex;}
+.gate-box{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:36px;width:100%;max-width:420px;}
+.gate-logo{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px;}
+.gate-title{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px;}
+.gate-sub{font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.5;}
+.gate-tabs{display:flex;gap:0;margin-bottom:24px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:3px;}
+.gt{flex:1;padding:7px;border-radius:5px;border:none;background:none;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:500;color:var(--muted);transition:all .15s;}
+.gt.active{background:var(--s4);color:var(--text);}
+.gate-err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:9px 12px;font-size:12px;color:#fca5a5;margin-bottom:14px;display:none;}
+.gate-info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:6px;padding:9px 12px;font-size:12px;color:#93c5fd;margin-bottom:14px;display:none;}
+.gate-note{font-size:11px;color:var(--muted);margin-top:16px;line-height:1.6;border-top:1px solid var(--bd);padding-top:14px;}
+.gate-note a{color:var(--accent);text-decoration:none;}
+.gf{display:flex;flex-direction:column;gap:4px;margin-bottom:14px;}
+.gf label{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;}
+.gf input{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:10px 13px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color .15s;width:100%;}
+.gf input:focus{border-color:var(--accent);}
+
+/* ── APP ── */
+#app{display:none;flex-direction:column;height:100vh;}
+#app.show{display:flex;}
+header{display:flex;align-items:center;gap:10px;padding:0 20px;height:50px;flex-shrink:0;background:var(--s1);border-bottom:1px solid var(--bd);}
+.logo{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.12em;white-space:nowrap;}
+.logo span{color:var(--muted);font-weight:400;}
+.hd{width:1px;height:18px;background:var(--bd);flex-shrink:0;}
+.kf{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;padding:5px 10px;}
+.kf label{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);white-space:nowrap;letter-spacing:.06em;text-transform:uppercase;}
+.kf input{background:none;border:none;outline:none;font-family:var(--mono);font-size:11px;color:var(--text);width:220px;}
+.kf input::placeholder{color:var(--muted2);}
+#cdot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:all .3s;}
+#cdot.ok{background:var(--green);box-shadow:0 0 7px var(--green);}
+.hdr-user{display:flex;align-items:center;gap:8px;margin-left:auto;}
+.user-email{font-family:var(--mono);font-size:10px;color:var(--muted);}
+
+nav{display:flex;padding:0 20px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0;overflow-x:auto;}
+.nb{padding:9px 14px;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:500;color:var(--muted);transition:color .15s,border-color .15s;white-space:nowrap;}
+.nb:hover{color:var(--text);}
+.nb.active{color:var(--accent);border-bottom-color:var(--accent);}
+.nb .cnt{display:inline-block;padding:1px 6px;border-radius:9px;font-family:var(--mono);font-size:9px;font-weight:700;margin-left:5px;background:var(--s3);color:var(--muted);}
+.nb.active .cnt{background:rgba(249,115,22,.15);color:var(--accent);}
+
+main{flex:1;overflow-y:auto;padding:22px;}
+.tab{display:none;}.tab.active{display:block;}
+
+/* ── DRAWER ── */
+.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99;display:none;}
+.drawer-overlay.open{display:block;}
+.drawer{position:fixed;top:0;right:-560px;width:560px;height:100vh;background:var(--s1);border-left:1px solid var(--bd);z-index:100;overflow-y:auto;transition:right .25s ease;display:flex;flex-direction:column;}
+.drawer.open{right:0;}
+.dr-hdr{display:flex;align-items:flex-start;justify-content:space-between;padding:20px 22px;border-bottom:1px solid var(--bd);flex-shrink:0;}
+.dr-name{font-size:17px;font-weight:700;margin-bottom:4px;}
+.dr-meta{font-family:var(--mono);font-size:10px;color:var(--muted);}
+.dr-body{padding:20px 22px;flex:1;}
+.dr-section{margin-bottom:20px;}
+.dr-section h4{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;}
+.dr-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+.dr-field .dl{font-size:10px;color:var(--muted);margin-bottom:2px;}
+.dr-field .dv{font-size:13px;color:var(--text);}
+.dr-field .dv.mono{font-family:var(--mono);font-size:11px;}
+.dr-field .dv.link a{color:var(--accent);text-decoration:none;font-family:var(--mono);font-size:11px;}
+.contact-item{background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:12px;margin-bottom:8px;}
+.contact-item .ce{font-family:var(--mono);font-size:11px;color:var(--accent);}
+.contact-item .cn{font-weight:600;font-size:13px;margin-bottom:2px;}
+.contact-item .ct{font-size:11px;color:var(--muted);}
+
+/* ── BULK BAR ── */
+#bulk-bar{position:sticky;top:0;z-index:10;background:var(--s3);border:1px solid var(--accent);border-radius:8px;padding:10px 16px;display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+#bulk-bar.show{display:flex;}
+#bulk-count{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:700;margin-right:4px;}
+
+/* ── CARDS ── */
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:9px;padding:20px;margin-bottom:16px;}
+.card-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;}
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:18px;}
+.sc{background:var(--s1);border:1px solid var(--bd);border-radius:7px;padding:14px 16px;}
+.sc .l{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:5px;}
+.sc .v{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--text);}
+.sc .v.o{color:var(--accent)}.sc .v.g{color:var(--green)}.sc .v.y{color:var(--yellow)}.sc .v.r{color:var(--red)}.sc .v.b{color:var(--blue)}
+
+/* ── FIELDS ── */
+.f{display:flex;flex-direction:column;gap:4px;}
+.f label{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;}
+.f input,.f select,.f textarea{background:var(--s2);border:1px solid var(--bd);border-radius:5px;padding:8px 11px;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;transition:border-color .15s;}
+.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--accent);}
+.f textarea{resize:vertical;min-height:80px;font-family:var(--mono);font-size:11px;line-height:1.6;}
+select option{background:var(--s2);}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:5px;border:none;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600;transition:opacity .15s,transform .1s;white-space:nowrap;}
+.btn:hover:not(:disabled){opacity:.82;}.btn:active:not(:disabled){transform:scale(.97);}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn-o{background:var(--accent);color:#000;}.btn-b{background:var(--blue);color:#fff;}
+.btn-r{background:var(--red);color:#fff;}.btn-g{background:var(--s3);color:var(--text);border:1px solid var(--bd2);}
+.btn-green{background:var(--green);color:#000;}
+.btn-sm{padding:5px 11px;font-size:12px;}.btn-full{width:100%;justify-content:center;padding:11px;}
+
+/* ── UPLOAD ZONE ── */
+.uz{border:2px dashed var(--bd2);border-radius:7px;padding:20px;text-align:center;cursor:pointer;transition:border-color .15s;position:relative;margin-bottom:12px;}
+.uz:hover,.uz.drag{border-color:var(--accent);}
+.uz input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.uz .ui{font-size:24px;margin-bottom:4px;}.uz p{color:var(--muted);font-size:12px;margin-top:3px;}
+
+/* ── MAPPER ── */
+.mapper{background:var(--bg);border:1px solid var(--bd);border-radius:7px;overflow:hidden;margin-bottom:14px;}
+.mapper-hdr{display:grid;grid-template-columns:190px 1fr 175px;background:var(--s2);border-bottom:1px solid var(--bd);}
+.mapper-hdr span{padding:7px 12px;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;}
+.mapper-row{display:grid;grid-template-columns:190px 1fr 175px;border-bottom:1px solid var(--bd);align-items:center;}
+.mapper-row:last-child{border-bottom:none;}.mapper-row:hover{background:var(--s2);}
+.mr-name{padding:7px 12px;font-family:var(--mono);font-size:11px;color:var(--text);}
+.mr-sample{padding:7px 12px;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mr-sel{padding:5px 8px;}
+.mr-sel select{width:100%;background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:4px 8px;color:var(--text);font-family:var(--sans);font-size:12px;outline:none;}
+.mr-sel select:focus{border-color:var(--accent);}
+
+/* ── QUALITY BANNER ── */
+.qbanner{background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);border-radius:8px;padding:14px 16px;margin-bottom:14px;}
+.qbanner h4{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--yellow);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;}
+.qbanner p{font-size:12px;color:var(--muted);margin-bottom:10px;}
+.bad-row-item{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--bd);}
+.bad-row-item:last-child{border-bottom:none;}
+.bad-row-name{font-family:var(--mono);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+/* ── PROCESSOR ── */
+.proc-panel{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:16px;}
+.proc-panel .pl{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;}
+.pc-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;}
+.pc-stat .lbl{font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:.05em;text-transform:uppercase;}
+.pc-stat .val{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text);}
+.pc-stat .val.o{color:var(--accent)}.pc-stat .val.g{color:var(--green)}.pc-stat .val.b{color:var(--blue)}
+.lanes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
+.lane{background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:10px;}
+.lane .ln{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+.lane .lv{font-family:var(--mono);font-size:11px;color:var(--text);min-height:16px;}
+.lane.active{border-color:var(--accent);}.lane.done{border-color:var(--green);}.lane.err{border-color:var(--red);}
+.spin{width:11px;height:11px;border:2px solid var(--bd2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.pg-wrap{margin-top:12px;}
+.pg-meta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:5px;}
+.pg-track{height:3px;background:var(--s4);border-radius:2px;overflow:hidden;}
+.pg-fill{height:100%;background:linear-gradient(90deg,var(--accent),#fb923c);border-radius:2px;transition:width .3s;width:0%;}
+
+/* ── TABLE ── */
+.tw{background:var(--s1);border:1px solid var(--bd);border-radius:9px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+thead th{padding:8px 12px;text-align:left;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;background:var(--s2);border-bottom:1px solid var(--bd);}
+thead th.sort{cursor:pointer;user-select:none;}
+thead th.sort:hover{color:var(--text);}
+tbody tr{border-bottom:1px solid var(--bd);transition:background .1s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:var(--s2);}
+tbody tr.selected{background:rgba(249,115,22,.07);}
+td{padding:9px 12px;font-size:12px;vertical-align:middle;}
+.mn{font-family:var(--mono);font-size:10px;color:var(--muted);}
+.cn{font-weight:600;}
+td.clickable{cursor:pointer;}
+td.clickable:hover{color:var(--accent);}
+
+/* ── BADGES ── */
+.vb{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-family:var(--mono);font-size:9px;font-weight:700;border:1px solid;}
+.sb{display:inline-block;padding:2px 7px;border-radius:3px;font-family:var(--mono);font-size:9px;font-weight:700;}
+
+/* ── LOG ── */
+.log{background:var(--bg);border:1px solid var(--bd);border-radius:7px;max-height:200px;overflow-y:auto;}
+.log-row{display:flex;gap:10px;padding:4px 12px;border-bottom:1px solid var(--bd);}
+.log-row:last-child{border-bottom:none;}
+.log-time{font-family:var(--mono);font-size:9px;color:var(--muted2);flex-shrink:0;padding-top:1px;}
+.log-msg{font-family:var(--mono);font-size:10px;}
+
+/* ── REVIEW ── */
+.rv{background:var(--s1);border:1px solid var(--bd);border-radius:7px;padding:14px;margin-bottom:9px;}
+.rv-name{font-weight:600;font-size:13px;margin-bottom:2px;}
+.rv-meta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:5px;}
+.rv-reason{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5;}
+.vp-row{display:flex;gap:5px;flex-wrap:wrap;}
+.vp{padding:4px 10px;border-radius:5px;border:1px solid var(--bd2);background:none;color:var(--muted);font-family:var(--mono);font-size:10px;font-weight:700;cursor:pointer;transition:all .15s;}
+.vp:hover{border-color:var(--accent);color:var(--text);}
+
+/* ── CAMPAIGN CARD ── */
+.camp-card{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:16px;margin-bottom:10px;display:flex;align-items:flex-start;gap:14px;}
+.camp-card .cc-info{flex:1;}
+.camp-card .cc-name{font-weight:600;font-size:14px;margin-bottom:3px;}
+.camp-card .cc-meta{font-size:12px;color:var(--muted);}
+.camp-card .cc-states{font-family:var(--mono);font-size:10px;color:var(--cyan);margin-top:4px;}
+.camp-card .cc-count{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--accent);text-align:right;min-width:50px;}
+.camp-card .cc-clabel{font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;}
+
+/* ── MISSING CONTACTS ── */
+.missing-item{background:var(--s1);border:1px solid var(--bd);border-radius:7px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;}
+.missing-item .mi-name{font-weight:600;flex:1;}
+.missing-item .mi-meta{font-size:11px;color:var(--muted);}
+
+/* ── MISC ── */
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+.sh h2{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;}
+.eb{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:9px 13px;font-size:12px;color:#fca5a5;margin-bottom:12px;display:none;}
+.ib{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:6px;padding:9px 13px;font-size:12px;color:#93c5fd;margin-bottom:12px;display:none;}
+.fr{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+.fr input,.fr select{background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:7px 10px;color:var(--text);font-family:var(--sans);font-size:12px;outline:none;transition:border-color .15s;}
+.fr input{flex:1;min-width:160px;}.fr input:focus,.fr select:focus{border-color:var(--accent);}
+.empty{text-align:center;padding:40px;color:var(--muted);font-family:var(--mono);font-size:11px;}
+hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
+.sql{background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:14px;font-family:var(--mono);font-size:10px;color:#7ee787;white-space:pre;overflow-x:auto;line-height:1.8;margin-bottom:10px;max-height:200px;}
+#toast-wrap{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:7px;z-index:200;}
+.toast{padding:9px 15px;border-radius:6px;font-size:12px;font-weight:600;animation:tin .2s ease;min-width:160px;}
+.toast.ok{background:var(--green);color:#000;}.toast.err{background:var(--red);color:#fff;}.toast.info{background:var(--s4);color:var(--text);border:1px solid var(--bd2);}
+@keyframes tin{from{transform:translateX(16px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+</style>
+</head>
+<body>
+
+<!-- CONFIG SCREEN -->
+<div class="gate" id="screen-config">
+  <div class="gate-box">
+    <div class="gate-logo">PFG / Enrichment</div>
+    <div class="gate-title">Connect Database</div>
+    <div class="gate-sub">One-time setup. Credentials stored locally — never sent anywhere except directly to Supabase and Anthropic.</div>
+    <div id="cfg-err" class="gate-err"></div>
+    <div class="gf"><label>Supabase Project URL</label><input type="text" id="cfg-url" placeholder="https://xxxx.supabase.co"/></div>
+    <div class="gf"><label>Supabase Anon Key</label><input type="password" id="cfg-key" placeholder="eyJ..."/></div>
+    <button class="btn btn-o btn-full" onclick="saveConfig()">Save & Continue →</button>
+    <div class="gate-note">Find these under <strong>Settings → API</strong> in your Supabase project.<br/><a href="https://supabase.com" target="_blank">Create a free project →</a><br/><br/><a href="#" onclick="resetConfig();return false;" style="color:var(--muted)">Reset saved credentials</a></div>
+  </div>
+</div>
+
+<!-- AUTH SCREEN -->
+<div class="gate" id="screen-auth">
+  <div class="gate-box">
+    <div class="gate-logo">PFG / Enrichment</div>
+    <div class="gate-title">Sign In</div>
+    <div class="gate-sub">Access restricted to authorized accounts only.</div>
+    <div class="gate-tabs">
+      <button class="gt active" onclick="switchAuthTab('signin')">Sign In</button>
+      <button class="gt" onclick="switchAuthTab('signup')">Create Account</button>
+    </div>
+    <div id="auth-err" class="gate-err"></div>
+    <div id="auth-info" class="gate-info"></div>
+    <div class="gf"><label>Email</label><input type="email" id="auth-email" placeholder="you@company.com" onkeydown="if(event.key==='Enter')submitAuth()"/></div>
+    <div class="gf"><label>Password</label><input type="password" id="auth-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitAuth()"/></div>
+    <div class="gf" id="auth-pw2-wrap" style="display:none"><label>Confirm Password</label><input type="password" id="auth-pw2" placeholder="••••••••"/></div>
+    <button class="btn btn-o btn-full" id="auth-btn" onclick="submitAuth()">Sign In</button>
+    <div class="gate-note"><span id="auth-note">Forgot password? Reset in Supabase dashboard → Authentication → Users.</span><br/><br/><a href="#" onclick="resetConfig();return false;" style="color:var(--muted)">Switch project →</a></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <header>
+    <div class="logo">PFG<span>/enrichment</span></div>
+    <div class="hd"></div>
+    <div class="kf"><label>Anthropic Key</label><input type="password" id="cfg-ant" placeholder="sk-ant-api03-..." oninput="saveAntKey()"/></div>
+    <div id="cdot"></div>
+    <div class="hdr-user">
+      <span class="user-email" id="user-email"></span>
+      <button class="btn btn-g btn-sm" onclick="signOut()">Sign Out</button>
+    </div>
+  </header>
+  <nav>
+    <button class="nb active" data-tab="dash">Dashboard</button>
+    <button class="nb" data-tab="companies">Companies <span class="cnt" id="nb-co">0</span></button>
+    <button class="nb" data-tab="contacts">Contacts <span class="cnt" id="nb-ct">0</span></button>
+    <button class="nb" data-tab="campaigns">Campaigns <span class="cnt" id="nb-camp">0</span></button>
+    <button class="nb" data-tab="export">Export</button>
+  </nav>
+  <main>
+
+  <!-- DASHBOARD -->
+  <div class="tab active" id="tab-dash">
+    <div class="sh"><h2>// Overview</h2><button class="btn btn-g btn-sm" onclick="loadDash()">↻ Refresh</button></div>
+    <div class="sg">
+      <div class="sc"><div class="l">Companies</div><div class="v o" id="st-co">—</div></div>
+      <div class="sc"><div class="l">Classified</div><div class="v g" id="st-done">—</div></div>
+      <div class="sc"><div class="l">Needs Review</div><div class="v y" id="st-rv">—</div></div>
+      <div class="sc"><div class="l">Pending</div><div class="v" id="st-pend">—</div></div>
+      <div class="sc"><div class="l">Contacts</div><div class="v b" id="st-ct">—</div></div>
+      <div class="sc"><div class="l">Matched</div><div class="v g" id="st-match">—</div></div>
+      <div class="sc"><div class="l">Assigned</div><div class="v b" id="st-assigned">—</div></div>
+      <div class="sc"><div class="l">Missing Contact</div><div class="v r" id="st-missing">—</div></div>
+    </div>
+    <div class="sh"><h2>// Vertical Breakdown</h2></div>
+    <div class="sg" id="vert-sg"></div>
+    <hr class="dv"/>
+    <div class="sh">
+      <h2>// Browse Companies</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-r btn-sm" onclick="deleteNoWebsite()">🗑 Delete No-Website</button>
+        <button class="btn btn-g btn-sm" onclick="loadBrowse()">Load</button>
+      </div>
+    </div>
+    <!-- BULK BAR -->
+    <div id="bulk-bar">
+      <span id="bulk-count">0 selected</span>
+      <button class="btn btn-r btn-sm" onclick="bulkDelete()">Delete</button>
+      <button class="btn btn-b btn-sm" onclick="bulkReclassify()">↺ Re-classify</button>
+      <select id="bulk-vert-sel" style="background:var(--s2);border:1px solid var(--bd2);border-radius:5px;padding:5px 10px;color:var(--text);font-size:12px;outline:none;">
+        <option value="">Assign vertical...</option>
+        <option value="dumpster">🗑️ Dumpster/Roll-Off</option>
+        <option value="junk_removal">🚛 Junk Removal</option>
+        <option value="equipment">🏗️ Equipment</option>
+        <option value="propane">🔥 Propane</option>
+        <option value="porta_potty">🚽 Porta Potty</option>
+        <option value="septic">💧 Septic</option>
+        <option value="waste">♻️ Waste</option>
+        <option value="other">❓ Other</option>
+      </select>
+      <button class="btn btn-o btn-sm" onclick="bulkAssignVertical()">Assign</button>
+      <button class="btn btn-g btn-sm" onclick="clearBulk()">✕ Clear</button>
+    </div>
+    <div class="fr">
+      <input type="text" id="br-search" placeholder="Search name, website, state..." oninput="filterBrowse()"/>
+      <select id="br-vert" onchange="filterBrowse()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option><option value="other">Other</option></select>
+      <select id="br-status" onchange="filterBrowse()"><option value="">All Status</option><option value="done">Done</option><option value="needs_review">Needs Review</option><option value="pending">Pending</option><option value="error">Error</option></select>
+      <select id="br-state" onchange="filterBrowse()"><option value="">All States</option></select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap"><input type="checkbox" id="br-noweb" onchange="filterBrowse()" style="width:auto"/> No website</label>
+    </div>
+    <div id="br-count" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px"></div>
+    <div class="tw" id="br-table"><div class="empty">Click Load to browse companies.</div></div>
+  </div>
+
+  <!-- COMPANIES -->
+  <div class="tab" id="tab-companies">
+    <div class="card">
+      <div class="card-title">1 — Import Leadscraper Data</div>
+      <div id="co-err" class="eb"></div>
+      <div class="uz" id="co-uz"><input type="file" id="co-file" accept=".csv,.txt,.xlsx" multiple/>
+        <div class="ui">📂</div>
+        <div style="font-weight:600">Drop one or many CSV / XLSX files at once</div>
+        <p>All 48 states — drop them all together, mapping confirmed once</p>
+      </div>
+      <div id="co-file-list" style="display:none;background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:10px;margin-bottom:10px;max-height:120px;overflow-y:auto"></div>
+      <div class="f" style="margin-bottom:10px"><label>Or paste CSV rows</label><textarea id="co-paste" placeholder="Business,Website,Categories,Description,SIC,NAICS..."></textarea></div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <button class="btn btn-b" onclick="parseCompanyCSV()">Parse Columns →</button>
+        <span id="co-ps" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:1px"></span>
+      </div>
+      <div id="co-mwrap" style="display:none;margin-top:14px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px;letter-spacing:.05em;text-transform:uppercase">Confirm Column Mapping</div>
+        <div class="mapper" id="co-mapper"></div>
+
+        <!-- IMPORT FILTERS -->
+        <div style="background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:14px;margin-bottom:14px">
+          <div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">Import Filters</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text);cursor:pointer">
+              <input type="checkbox" id="f-nowebsite" checked style="width:auto;margin-top:2px;flex-shrink:0"/>
+              <div><strong>Exclude no-website companies</strong><div style="font-size:11px;color:var(--muted);margin-top:2px">Can't be domain-matched to Clay contacts. Not worth API calls.</div></div>
+            </label>
+            <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text);cursor:pointer">
+              <input type="checkbox" id="f-enterprise" checked style="width:auto;margin-top:2px;flex-shrink:0"/>
+              <div><strong>Tag national chains as "Enterprise"</strong><div style="font-size:11px;color:var(--muted);margin-top:2px">United Rentals, Waste Management, Republic Services, etc. Kept but tagged for separate campaign.</div></div>
+            </label>
+            <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text);cursor:pointer">
+              <input type="checkbox" id="f-govt" checked style="width:auto;margin-top:2px;flex-shrink:0"/>
+              <div><strong>Tag government entities</strong><div style="font-size:11px;color:var(--muted);margin-top:2px">Township, County, City of, Authority, etc. Kept but tagged.</div></div>
+            </label>
+            <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text);cursor:pointer">
+              <input type="checkbox" id="f-minrev" style="width:auto;margin-top:2px;flex-shrink:0"/>
+              <div><strong>Exclude below minimum revenue</strong>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+                  <input type="text" id="f-minrev-val" placeholder="e.g. 100K" style="background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:4px 8px;color:var(--text);font-family:var(--mono);font-size:11px;width:90px;outline:none"/>
+                  <span style="font-size:11px;color:var(--muted)">min revenue</span>
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- QUALITY CHECK -->
+        <div id="co-quality-wrap" style="display:none;margin-bottom:14px">
+          <div class="qbanner">
+            <h4>⚠ Suspicious Rows Detected</h4>
+            <p id="q-summary"></p>
+            <div id="q-rows" style="max-height:200px;overflow-y:auto"></div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn btn-g btn-sm" onclick="excludeAllBad()">Exclude All Flagged</button>
+              <button class="btn btn-g btn-sm" onclick="includeAllBad()">Include All Anyway</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn btn-o" onclick="importCompanies()">Import All Rows</button>
+          <span id="co-is" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">2 — Classify</div>
+      <div id="proc-err" class="eb"></div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+        <div class="f" style="max-width:180px"><label>Per API call</label><select id="batch-sz"><option value="50">50</option><option value="100">100</option><option value="150" selected>150</option><option value="200">200</option></select></div>
+        <div class="f" style="max-width:180px"><label>Parallel calls</label><select id="concurrency"><option value="1">1 (Tier 1)</option><option value="2">2</option><option value="4" selected>4 (recommended)</option><option value="6">6 (Tier 2+)</option></select></div>
+        <div class="f" style="max-width:150px"><label>Stop after (0=all)</label><input type="number" id="run-limit" value="0" min="0"/></div>
+        <div style="display:flex;gap:8px;margin-bottom:1px">
+          <button class="btn btn-o" id="btn-start" onclick="startClassify()">▶ Start</button>
+          <button class="btn btn-r" id="btn-pause" onclick="pauseClassify()" disabled>⏸ Pause</button>
+          <button class="btn btn-g btn-sm" onclick="resetStuck()">↺ Reset Stuck</button>
+          <button class="btn btn-g btn-sm" onclick="reclassifyAll()" title="Reset all classified companies and re-run with improved verticals">↺ Re-classify All</button>
+        </div>
+      </div>
+      <div class="proc-panel">
+        <div class="pl">Live — Concurrent Calls</div>
+        <div class="lanes" id="lanes">
+          <div class="lane" id="lane-0"><div class="ln">Call 1</div><div class="lv" id="lv-0">—</div></div>
+          <div class="lane" id="lane-1"><div class="ln">Call 2</div><div class="lv" id="lv-1">—</div></div>
+          <div class="lane" id="lane-2"><div class="ln">Call 3</div><div class="lv" id="lv-2">—</div></div>
+          <div class="lane" id="lane-3"><div class="ln">Call 4</div><div class="lv" id="lv-3">—</div></div>
+        </div>
+        <div class="pc-grid">
+          <div class="pc-stat"><div class="lbl">Processed</div><div class="val o" id="pc-done">0</div></div>
+          <div class="pc-stat"><div class="lbl">Rate</div><div class="val b" id="pc-rate">—</div></div>
+          <div class="pc-stat"><div class="lbl">ETA</div><div class="val" id="pc-eta">—</div></div>
+        </div>
+        <div class="pg-wrap"><div class="pg-meta"><span id="pg-lbl">Ready</span><span id="pg-pct">—</span></div><div class="pg-track"><div class="pg-fill" id="pg-fill"></div></div></div>
+      </div>
+      <hr class="dv"/>
+      <div class="sh"><h2>// Session Log</h2><button class="btn btn-g btn-sm" onclick="clearLog()">Clear</button></div>
+      <div class="log" id="log-el"><div style="padding:10px 12px;color:var(--muted);font-size:10px">No activity.</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">3 — Review Low-Confidence</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+        <button class="btn btn-g btn-sm" onclick="loadReview()">Load Items</button>
+        <span id="rv-ct" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+      </div>
+      <div id="rv-list"><div class="empty">Click "Load Items" to see low-confidence classifications.</div></div>
+    </div>
+  </div>
+
+  <!-- CONTACTS -->
+  <div class="tab" id="tab-contacts">
+    <div class="card">
+      <div class="card-title">1 — Import Clay Contacts</div>
+      <div id="ct-err" class="eb"></div>
+      <div class="uz" id="ct-uz"><input type="file" id="ct-file" accept=".csv,.txt,.xlsx"/>
+        <div class="ui">📂</div><div style="font-weight:600">Drop Clay export CSV or XLSX</div><p>No row limit</p>
+      </div>
+      <div class="f" style="margin-bottom:10px"><label>Or paste rows</label><textarea id="ct-paste" placeholder="First Name,Last Name,Email,Title,Company,Company Website..."></textarea></div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="f" style="flex:1;max-width:280px"><label>Source File Label</label><input type="text" id="ct-src" placeholder="clay_export_apr.csv"/></div>
+        <button class="btn btn-b" onclick="parseContactCSV()">Parse Columns →</button>
+        <span id="ct-ps" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:1px"></span>
+      </div>
+      <div id="ct-mwrap" style="display:none;margin-top:14px">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px;letter-spacing:.05em;text-transform:uppercase">Confirm Column Mapping</div>
+        <div class="mapper" id="ct-mapper"></div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+          <button class="btn btn-o" onclick="importContacts()">Import All Contacts</button>
+          <span id="ct-is" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">2 — Match to Classified Companies</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Links each contact to a company by normalized domain. Unmatched contacts are flagged and excluded from export.</p>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-o" onclick="runMatching()">Run Matching</button>
+        <span id="match-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">3 — Missing Contacts</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Companies with no reachable email — no contact from leadscraper AND no matched Clay contact. Export as a Clay research list to find emails.</p>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+        <button class="btn btn-g btn-sm" onclick="loadMissing()">Find Missing</button>
+        <button class="btn btn-o btn-sm" onclick="exportMissing()">↓ Export Research List</button>
+        <span id="missing-ct" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+      </div>
+      <div id="missing-list"><div class="empty">Click "Find Missing" to identify companies with no contact email.</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">4 — Contact Browser</div>
+      <div class="sh" style="margin-bottom:8px"><div></div><button class="btn btn-g btn-sm" onclick="loadContactsTable()">Load</button></div>
+      <div class="fr">
+        <input type="text" id="ct-srch" placeholder="Search email or company..." oninput="filterContacts()"/>
+        <select id="ct-fm" onchange="filterContacts()"><option value="">All Match</option><option value="matched">Matched</option><option value="unmatched">Unmatched</option><option value="pending">Pending</option></select>
+        <select id="ct-fcamp" onchange="filterContacts()"><option value="">All Campaigns</option></select>
+      </div>
+      <div id="ct-tbl" class="tw"><div class="empty">Load contacts to view.</div></div>
+    </div>
+  </div>
+
+  <!-- CAMPAIGNS -->
+  <div class="tab" id="tab-campaigns">
+    <div class="card">
+      <div class="card-title">Define Campaigns</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:16px">Each campaign maps a vertical to a set of states. Auto-assign reads your matched contacts and links them to the right campaign based on their company's vertical and state.</p>
+      <div id="camp-err" class="eb"></div>
+      <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:16px;margin-bottom:16px">
+        <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">New Campaign</div>
+        <div class="row2" style="margin-bottom:10px">
+          <div class="f"><label>Campaign Name *</label><input type="text" id="nc-name" placeholder="Dumpster SunBelt Q2"/></div>
+          <div class="f"><label>Vertical *</label>
+            <select id="nc-vert"><option value="">— select —</option><option value="dumpster">🗑️ Dumpster/Roll-Off</option><option value="junk_removal">🚛 Junk Removal</option><option value="equipment">🏗️ Equipment Rental</option><option value="propane">🔥 Propane/Oil</option><option value="porta_potty">🚽 Porta Potty</option><option value="septic">💧 Septic</option><option value="waste">♻️ Waste Management</option></select>
+          </div>
+        </div>
+        <div class="row2" style="margin-bottom:10px">
+          <div class="f"><label>States (comma-separated, blank = all)</label><input type="text" id="nc-states" placeholder="CT,NY,NJ,MA,PA"/></div>
+          <div class="f"><label>Sending Domain</label><input type="text" id="nc-domain" placeholder="choicestickers.com"/></div>
+        </div>
+        <div class="row2" style="margin-bottom:10px">
+          <div class="f"><label>Instantly Campaign ID (optional)</label><input type="text" id="nc-instid" placeholder="For reference only"/></div>
+          <div class="f"><label>Status</label><select id="nc-status"><option value="active">Active</option><option value="paused">Paused</option><option value="completed">Completed</option></select></div>
+        </div>
+        <button class="btn btn-o btn-sm" onclick="createCampaign()">+ Create Campaign</button>
+      </div>
+      <div class="sh"><h2>// Active Campaigns</h2>
+        <button class="btn btn-green btn-sm" onclick="autoAssign()">⚡ Auto-Assign All Contacts</button>
+      </div>
+      <div id="camp-list"><div class="empty">No campaigns yet.</div></div>
+    </div>
+  </div>
+
+  <!-- EXPORT -->
+  <div class="tab" id="tab-export">
+    <div class="card">
+      <div class="card-title">Suppression List</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Import emails or domains that should never be contacted — bounces, opt-outs, existing customers, replied contacts from Instantly. Paste one per line or upload a CSV.</p>
+      <div class="row2" style="margin-bottom:12px">
+        <div>
+          <div class="f" style="margin-bottom:8px"><label>Paste emails or domains (one per line)</label><textarea id="supp-paste" placeholder="john@acme.com&#10;acme.com&#10;jane@example.com" style="min-height:100px"></textarea></div>
+          <div class="f" style="margin-bottom:8px"><label>Reason</label><select id="supp-reason"><option value="manual">Manual</option><option value="bounced">Bounced</option><option value="opted_out">Opted Out</option><option value="replied">Replied</option><option value="customer">Existing Customer</option></select></div>
+          <button class="btn btn-o btn-sm" onclick="importSuppression()">Import Suppression</button>
+          <span id="supp-st" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:10px"></span>
+        </div>
+        <div>
+          <div class="f" style="margin-bottom:10px"><label>Suppression List Stats</label></div>
+          <div class="sg" style="margin-bottom:12px">
+            <div class="sc"><div class="l">Total</div><div class="v" id="supp-total">—</div></div>
+            <div class="sc"><div class="l">Contacts Suppressed</div><div class="v r" id="supp-contacts">—</div></div>
+          </div>
+          <button class="btn btn-b btn-sm" onclick="runSuppressionCheck()">Run Suppression Check</button>
+          <p style="font-size:11px;color:var(--muted);margin-top:8px">Marks any matching contacts as suppressed. Run before exporting.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Export by Campaign</div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:16px">Downloads an Excel file with one sheet per campaign — contacts assigned, suppressed contacts excluded, vertical tagged. Ready to upload directly to Instantly.</p>
+      <div id="exp-info" class="ib"></div>
+      <div class="row2" style="margin-bottom:16px">
+        <div class="f"><label>Min Confidence</label><select id="exp-c"><option value="">Any</option><option value="high">High only</option><option value="high_med">High + Medium</option></select></div>
+        <div class="f"><label>Include Companies Sheet</label><select id="exp-cosheet"><option value="1">Yes</option><option value="0">No</option></select></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-o" onclick="doExport()">↓ Download Excel by Campaign</button>
+        <button class="btn btn-g btn-sm" onclick="exportUnassigned()">↓ Unassigned Contacts</button>
+        <span id="exp-msg" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+      </div>
+      <hr class="dv"/>
+      <div id="exp-preview"></div>
+    </div>
+  </div>
+
+  </main>
+</div>
+
+<!-- COMPANY DRAWER -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="company-drawer">
+  <div class="dr-hdr">
+    <div>
+      <div class="dr-name" id="dr-name">—</div>
+      <div class="dr-meta" id="dr-meta">—</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-b btn-sm" id="dr-reclass" onclick="reclassifySingle()">↺ Re-classify</button>
+      <button class="btn btn-g btn-sm" onclick="closeDrawer()">✕</button>
+    </div>
+  </div>
+  <div class="dr-body" id="dr-body"></div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<script>
+/* ══════════════════════════════════════════
+   SCHEMA SQL
+══════════════════════════════════════════ */
+const NEW_SCHEMA_SQL = `-- Run this to add campaigns + suppression tables
+-- (run AFTER initial schema from v3)
+
+create table if not exists campaigns (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  vertical text not null,
+  states text,
+  sending_domain text,
+  status text default 'active',
+  instantly_id text,
+  created_at timestamptz default now()
+);
+
+create table if not exists suppression (
+  id uuid default gen_random_uuid() primary key,
+  value text not null,
+  type text not null,
+  reason text default 'manual',
+  created_at timestamptz default now()
+);
+
+alter table contacts
+  add column if not exists campaign_id uuid references campaigns(id),
+  add column if not exists suppressed boolean default false,
+  add column if not exists suppressed_reason text,
+  add column if not exists export_status text default 'pending';
+
+create index if not exists on contacts(campaign_id);
+create index if not exists on contacts(suppressed);
+
+alter table campaigns enable row level security;
+alter table suppression enable row level security;
+create policy if not exists "auth_only" on campaigns for all to authenticated using (true) with check (true);
+create policy if not exists "auth_only" on suppression for all to authenticated using (true) with check (true);`;
+
+/* ══════════════════════════════════════════
+   VERTICALS + STATES
+══════════════════════════════════════════ */
+const V = {
+  dumpster:     {label:'Dumpster/Roll-Off',   color:'#f97316',bg:'rgba(249,115,22,.12)', emoji:'🗑️'},
+  junk_removal: {label:'Junk Removal',        color:'#fb7185',bg:'rgba(251,113,133,.12)',emoji:'🚛'},
+  equipment:    {label:'Equipment Rental',    color:'#3b82f6',bg:'rgba(59,130,246,.12)', emoji:'🏗️'},
+  propane:      {label:'Propane/Oil',         color:'#a855f7',bg:'rgba(168,85,247,.12)', emoji:'🔥'},
+  porta_potty:  {label:'Porta Potty',         color:'#22c55e',bg:'rgba(34,197,94,.12)',  emoji:'🚽'},
+  septic:       {label:'Septic',              color:'#eab308',bg:'rgba(234,179,8,.12)',  emoji:'💧'},
+  waste:        {label:'Waste Management',    color:'#06b6d4',bg:'rgba(6,182,212,.12)',  emoji:'♻️'},
+  other:        {label:'Other/Unknown',       color:'#64748b',bg:'rgba(100,116,139,.12)',emoji:'❓'},
+};
+const STATES=['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+
+/* ── SCORING ── */
+const NATIONAL_CHAINS=[
+  'united rentals','sunbelt rentals','herc rentals','ahern rentals','blueline rental',
+  'waste management','republic services','clean harbors','stericycle','casella waste',
+  'covanta','us ecology','advanced disposal','safety kleen','heritage crystal clean',
+  'harsco','maxim crane','bigge crane','neff','brambles','h&e equipment',
+  'rumpke','waste connections','enviri','clean earth','us waste industries',
+  'lhoist','recology','gfl environmental','gfl','granite waste','meridian waste',
+  'home depot','lowes','fastenal','uhaul','penske truck','ryder',
+];
+const GOVT_PATTERN=/\b(township|county\s+of|city\s+of|town\s+of|village\s+of|borough\s+of|dept\.?\s+of|department\s+of|authority|municipal|municipality|district|public\s+works|sanitation\s+dept|public\s+utility|utility\s+district|state\s+of)\b/i;
+const GENERIC_EMAIL_PREFIXES=new Set(['info','contact','admin','hello','support','sales','office','mail','inquiry','inquiries','general','webmaster','help','noreply','no-reply','team','billing','accounts','reception','service','customerservice','cs','hr','marketing','pr','operations','ops','manager','owners','leasing','rentals','dispatch','accounting','bookkeeping']);
+
+function parseRevenue(str){
+  if(!str)return 0;
+  const s=str.replace(/[$,\s<>~≈]/g,'').toUpperCase();
+  const n=parseFloat(s);if(isNaN(n))return 0;
+  if(s.includes('B'))return n*1e9;if(s.includes('M'))return n*1e6;if(s.includes('K'))return n*1e3;
+  return n;
+}
+function parseEmployees(str){
+  if(!str)return 0;const n=parseInt((str||'').replace(/[^0-9]/g,''));return isNaN(n)?0:n;
+}
+function isGenericEmail(email){
+  if(!email)return false;
+  const prefix=(email.split('@')[0]||'').toLowerCase().replace(/[._\-+]/g,'');
+  return GENERIC_EMAIL_PREFIXES.has(prefix);
+}
+function detectTags(name,revenue,employees){
+  const tags=[];const nameLow=(name||'').toLowerCase();
+  if(NATIONAL_CHAINS.some(c=>nameLow.includes(c)))tags.push('enterprise');
+  if(!tags.includes('enterprise')&&(parseRevenue(revenue)>50000000||parseEmployees(employees)>500))tags.push('enterprise');
+  if(GOVT_PATTERN.test(name))tags.push('government');
+  return tags.length?tags.join(','):null;
+}
+function calcScore(co){
+  // Manual override takes precedence
+  if(co.score_override!=null&&co.score_override>=0)return Math.min(co.score_override,100);
+  let s=0;
+  const rev=parseRevenue(co.revenue);
+  if(rev>=5000000)s+=25;else if(rev>=1000000)s+=18;else if(rev>=500000)s+=10;else if(rev>0)s+=4;
+  const emp=parseEmployees(co.employees);
+  if(emp>=50)s+=20;else if(emp>=20)s+=14;else if(emp>=10)s+=8;else if(emp>=5)s+=4;
+  const locs=co.location_count||1;
+  if(locs>=3)s+=15;else if(locs>=2)s+=8;
+  const yr=parseInt(co.founded)||0;
+  if(yr>0&&yr<=2010)s+=10;else if(yr>2010&&yr<=2018)s+=6;else if(yr>2018)s+=2;
+  const email=(co.contact_email||'').toLowerCase();
+  const hasName=co.contact_first_name&&co.contact_last_name;
+  const generic=isGenericEmail(email);
+  if(email&&hasName&&!generic)s+=15;else if(email&&!generic)s+=8;else if(email&&generic)s+=3;
+  if(co.linkedin)s+=5;
+  if(co.description)s+=2;
+  return Math.min(s,100);
+}
+function scoreTier(score){
+  if(score>=70)return{tier:'A',emoji:'🔥',color:'#ef4444'};
+  if(score>=45)return{tier:'B',emoji:'✅',color:'#22c55e'};
+  if(score>=20)return{tier:'C',emoji:'⚠️',color:'#eab308'};
+  return{tier:'D',emoji:'❄️',color:'#64748b'};
+}
+
+/* ── MULTI-FILE STATE ── */
+let coParsedFiles=[]; // [{parsed:{headers,rows}, filename}]
+
+/* ══════════════════════════════════════════
+   STATE
+══════════════════════════════════════════ */
+let sbClient=null, currentUser=null;
+let isRunning=false, shouldPause=false;
+let coParsed=null, ctParsed=null;
+let allBrowse=[], browseSort={col:'name',dir:'asc'};
+let allContacts=[], allCampaigns=[];
+let logEntries=[];
+let sessionStart=0, sessionDone=0, sessionTotal=0;
+let authMode='signin';
+let currentDrawerId=null;
+let badRowIndices=new Set(); // indices flagged as suspicious
+let excludedRowIndices=new Set(); // user chose to exclude
+let selectedRows=new Set(); // for bulk actions
+
+/* ══════════════════════════════════════════
+   INIT
+══════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', async () => {
+  const url=localStorage.getItem('sb_url'), key=localStorage.getItem('sb_key'), ant=sessionStorage.getItem('ant_key');
+  if(ant){document.getElementById('cfg-ant').value=ant;}
+  populateStateFilter();
+  if(!url||!key){showScreen('config');return;}
+  try{
+    sbClient=window.supabase.createClient(url,key);
+    sbClient.auth.onAuthStateChange(async(e,s)=>{if(e==='SIGNED_IN'&&s)await onSignedIn(s.user);else if(e==='SIGNED_OUT')showScreen('auth');});
+    const{data:{session}}=await sbClient.auth.getSession();
+    if(session)await onSignedIn(session.user);else showScreen('auth');
+  }catch(e){showScreen('config');}
+});
+
+function showScreen(n){
+  document.getElementById('screen-config').classList.toggle('show',n==='config');
+  document.getElementById('screen-auth').classList.toggle('show',n==='auth');
+  document.getElementById('app').classList.toggle('show',n==='app');
+}
+
+async function onSignedIn(user){
+  currentUser=user;
+  document.getElementById('user-email').textContent=user.email;
+  document.getElementById('cdot').className='ok';
+  showScreen('app');
+  setupNav();
+  setupDrop('co-uz','co-file', handleCoFiles);
+  setupDrop('ct-uz','ct-file',(t,n)=>{document.getElementById('ct-paste').value=t;document.getElementById('ct-src').value=n;});
+  loadDash();
+  loadCampaigns();
+}
+
+async function saveConfig(){
+  const url=document.getElementById('cfg-url').value.trim(), key=document.getElementById('cfg-key').value.trim();
+  if(!url||!key){gateErr('cfg-err','Enter both URL and key.');return;}
+  try{
+    sbClient=window.supabase.createClient(url,key);
+    const{error}=await sbClient.from('companies').select('id').limit(1);
+    if(error&&error.code!=='PGRST116'&&error.code!=='42501')throw error;
+    localStorage.setItem('sb_url',url);localStorage.setItem('sb_key',key);
+    sbClient.auth.onAuthStateChange(async(e,s)=>{if(e==='SIGNED_IN'&&s)await onSignedIn(s.user);else if(e==='SIGNED_OUT')showScreen('auth');});
+    const{data:{session}}=await sbClient.auth.getSession();
+    showScreen(session?'app':'auth');if(session)await onSignedIn(session.user);
+  }catch(e){gateErr('cfg-err','Failed: '+e.message);}
+}
+function resetConfig(){localStorage.removeItem('sb_url');localStorage.removeItem('sb_key');sbClient=null;showScreen('config');}
+
+/* ══════════════════════════════════════════
+   AUTH
+══════════════════════════════════════════ */
+function switchAuthTab(m){
+  authMode=m;
+  document.querySelectorAll('.gt').forEach((b,i)=>b.classList.toggle('active',(i===0&&m==='signin')||(i===1&&m==='signup')));
+  document.getElementById('auth-btn').textContent=m==='signin'?'Sign In':'Create Account';
+  document.getElementById('auth-pw2-wrap').style.display=m==='signup'?'block':'none';
+  document.getElementById('auth-note').textContent=m==='signin'?'Forgot password? Reset in Supabase dashboard → Authentication → Users.':'After setup, disable sign-ups in Supabase → Auth → Settings.';
+  clearGateErr('auth-err');clearGateInfo('auth-info');
+}
+async function submitAuth(){
+  const email=document.getElementById('auth-email').value.trim(), pw=document.getElementById('auth-pw').value;
+  if(!email||!pw){gateErr('auth-err','Email and password required.');return;}
+  document.getElementById('auth-btn').disabled=true;clearGateErr('auth-err');
+  try{
+    if(authMode==='signin'){const{error}=await sbClient.auth.signInWithPassword({email,password:pw});if(error)throw error;}
+    else{
+      const pw2=document.getElementById('auth-pw2').value;
+      if(pw!==pw2){gateErr('auth-err','Passwords do not match.');document.getElementById('auth-btn').disabled=false;return;}
+      if(pw.length<8){gateErr('auth-err','Password must be at least 8 characters.');document.getElementById('auth-btn').disabled=false;return;}
+      const{error}=await sbClient.auth.signUp({email,password:pw});if(error)throw error;
+      gateInfo('auth-info','Account created. Check email to confirm or sign in now if confirmation is disabled.');
+    }
+  }catch(e){gateErr('auth-err',e.message);}
+  document.getElementById('auth-btn').disabled=false;
+}
+async function signOut(){await sbClient?.auth.signOut();currentUser=null;sessionStorage.removeItem('ant_key');showScreen('auth');toast('Signed out','info');}
+function saveAntKey(){const k=document.getElementById('cfg-ant').value.trim();if(k)sessionStorage.setItem('ant_key',k);}
+
+/* ══════════════════════════════════════════
+   NAV
+══════════════════════════════════════════ */
+function setupNav(){
+  document.querySelectorAll('.nb[data-tab]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+      if(btn.dataset.tab==='dash')loadDash();
+      if(btn.dataset.tab==='campaigns')loadCampaigns();
+    });
+  });
+}
+
+/* ══════════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════════ */
+async function loadDash(){
+  if(!sbClient)return;
+  const[{data:cos},{data:cts}]=await Promise.all([sbClient.from('companies').select('status,vertical,state'),sbClient.from('contacts').select('match_status,campaign_id,suppressed')]);
+  const co=cos||[],ct=cts||[];
+  const c=s=>co.filter(r=>r.status===s).length;
+  document.getElementById('st-co').textContent=co.length;
+  document.getElementById('st-done').textContent=c('done');
+  document.getElementById('st-rv').textContent=c('needs_review');
+  document.getElementById('st-pend').textContent=c('pending');
+  document.getElementById('st-ct').textContent=ct.length;
+  document.getElementById('st-match').textContent=ct.filter(r=>r.match_status==='matched').length;
+  document.getElementById('st-assigned').textContent=ct.filter(r=>r.campaign_id).length;
+  document.getElementById('nb-co').textContent=co.length;
+  document.getElementById('nb-ct').textContent=ct.length;
+  // Missing = classified companies with no contact (rough estimate from stats)
+  // Proper count loaded separately
+  const vc={};
+  co.filter(r=>r.vertical&&r.status!=='pending'&&r.status!=='processing').forEach(r=>{vc[r.vertical]=(vc[r.vertical]||0)+1;});
+  const sg=document.getElementById('vert-sg');sg.innerHTML='';
+  Object.entries(vc).sort((a,b)=>b[1]-a[1]).forEach(([k,n])=>{const v=V[k]||V.other;const el=document.createElement('div');el.className='sc';el.innerHTML=`<div class="l">${v.emoji} ${v.label}</div><div class="v" style="color:${v.color}">${n}</div>`;sg.appendChild(el);});
+  if(!Object.keys(vc).length)sg.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">No classified companies yet.</div>';
+}
+
+function populateStateFilter(){
+  const sel=document.getElementById('br-state');
+  STATES.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;sel.appendChild(o);});
+}
+
+/* ══════════════════════════════════════════
+   FILE DROP
+══════════════════════════════════════════ */
+function setupDrop(zId,iId,onLoad){
+  const zone=document.getElementById(zId),input=document.getElementById(iId);
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag');});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('drag'));
+  zone.addEventListener('drop',e=>{
+    e.preventDefault();zone.classList.remove('drag');
+    const files=[...e.dataTransfer.files];
+    if(iId==='co-file')handleCoFiles(files);
+    else if(files[0])readFile(files[0],onLoad);
+  });
+  input.addEventListener('change',e=>{
+    const files=[...e.target.files];
+    if(iId==='co-file')handleCoFiles(files);
+    else if(files[0])readFile(files[0],onLoad);
+    e.target.value='';
+  });
+}
+
+function handleCoFiles(files){
+  coParsedFiles=[];
+  const fileArr=[...files];
+  let loaded=0;
+  const onAllDone=()=>{
+    if(!coParsedFiles.length)return;
+    const totalRows=coParsedFiles.reduce((s,f)=>s+f.parsed.rows.length,0);
+    document.getElementById('co-ps').textContent=`${coParsedFiles.length} files · ${totalRows.toLocaleString()} rows total`;
+    // Show file list
+    const fl=document.getElementById('co-file-list');
+    fl.style.display='block';
+    fl.innerHTML=coParsedFiles.map(f=>`<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;padding:3px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--text)">${esc(f.filename)}</span><span style="color:var(--muted)">${f.parsed.rows.length.toLocaleString()} rows</span></div>`).join('');
+    // Use first file for mapper
+    const first=coParsedFiles[0];
+    coParsed=first.parsed;
+    const autoM=autoDetect(first.parsed.headers,CO_FIELDS);
+    buildMapper('co-mapper',first.parsed.headers,first.parsed.rows,CO_FIELDS,autoM);
+    document.getElementById('co-mwrap').style.display='block';
+    runQualityCheck(first.parsed.rows,autoM.name,autoM.website,autoM.state);
+    toast(`${coParsedFiles.length} files ready`,'ok');
+  };
+  fileArr.forEach(f=>{
+    readFile(f,(txt,name)=>{
+      const parsed=parseCSVText(txt);
+      if(parsed)coParsedFiles.push({parsed,filename:name});
+      loaded++;if(loaded===fileArr.length)onAllDone();
+    });
+  });
+}
+function readFile(f,onLoad){
+  if(f.name.match(/\.xlsx?$/i)){const r=new FileReader();r.onload=e=>{const wb=XLSX.read(e.target.result,{type:'binary'});onLoad(XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]),f.name);toast('Loaded: '+f.name,'ok');};r.readAsBinaryString(f);}
+  else{const r=new FileReader();r.onload=e=>{onLoad(e.target.result,f.name);toast('Loaded: '+f.name,'ok');};r.readAsText(f);}
+}
+
+/* ══════════════════════════════════════════
+   CSV PARSING
+══════════════════════════════════════════ */
+function parseCSVText(raw){
+  const lines=raw.trim().split('\n').filter(l=>l.trim());if(!lines.length)return null;
+  const parseLine=l=>{const res=[];let cur='',inQ=false;for(let i=0;i<l.length;i++){const c=l[i];if(c==='"'){if(inQ&&l[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}else if(c===','&&!inQ){res.push(cur.trim());cur='';}else cur+=c;}res.push(cur.trim());return res;};
+  const headers=parseLine(lines[0]);
+  const rows=lines.slice(1).map(l=>parseLine(l)).filter(r=>r.some(c=>c));
+  return{headers,rows};
+}
+
+/* ══════════════════════════════════════════
+   COLUMN MAPPER
+══════════════════════════════════════════ */
+const CO_FIELDS=[
+  {key:'name',label:'Company Name *',required:true},{key:'website',label:'Website'},
+  {key:'state',label:'State'},{key:'city',label:'City'},
+  {key:'categories',label:'Google Categories'},{key:'description',label:'Description'},
+  {key:'sic',label:'SIC Code'},{key:'naics',label:'NAICS Code'},
+  {key:'revenue',label:'Revenue'},{key:'employees',label:'Employees'},{key:'founded',label:'Founded'},
+  {key:'linkedin',label:'LinkedIn URL'},
+  {key:'email',label:'Email (company/role)'},
+  {key:'contact_first_name',label:'Contact First Name'},{key:'contact_last_name',label:'Contact Last Name'},
+  {key:'contact_role',label:'Contact Role'},{key:'contact_email',label:'Contact Email (direct/named)'},
+];
+const CT_FIELDS=[
+  {key:'email',label:'Email *',required:true},{key:'first_name',label:'First Name'},
+  {key:'last_name',label:'Last Name'},{key:'title',label:'Job Title'},
+  {key:'company_name',label:'Company Name'},{key:'website',label:'Company Website'},
+];
+const DP={
+  name:['business','company name','company','name','business name','organization','org','dba'],
+  website:['website','url','domain','web','site','company website','company url','company_website','web site'],
+  categories:['categories','category','type','business type','place type','google category','google_categories','place categories'],
+  description:['description','desc','about','summary','snippet','bio','overview','business description'],
+  sic:['sic','sic code','sic_code'],
+  naics:['naics','naics code','naics_code'],
+  revenue:['revenue','rev','annual revenue','estimated revenue','annual_revenue','est revenue'],
+  employees:['employees','employee','staff','headcount','employee count','num employees','employee_count','number of employees'],
+  founded:['founded','founded year','established','year founded','year established'],
+  state:['state','province','region'],
+  city:['city','town','municipality','location'],
+  linkedin:['linkedin','linkedin url','linkedin_url','linkedin profile','li url'],
+  contact_first_name:['contact first name','contact first','first name','first','firstname'],
+  contact_last_name:['contact last name','contact last','last name','last','lastname'],
+  contact_role:['contact role','role','contact title','contact position'],
+  contact_email:['contact email','contact e-mail'],
+  email:['email','email address','e-mail','work email','work_email'],
+  first_name:['first name','first','firstname','fname','given name','first_name'],
+  last_name:['last name','last','lastname','lname','surname','family name','last_name'],
+  title:['title','job title','position','role','job','designation','job_title'],
+  company_name:['company','company name','organization','org','employer','current company'],
+};
+function autoDetect(headers,fields){
+  const m={};
+  const hL=headers.map(h=>h.toLowerCase().trim());
+  const used=new Set();
+  fields.forEach(f=>{
+    const pats=DP[f.key]||[f.key];
+    for(let i=0;i<hL.length;i++){
+      if(used.has(i))continue;
+      const h=hL[i];
+      const hit=pats.some(p=>{
+        const pn=p.toLowerCase();
+        if(h===pn)return true;
+        if(h.replace(/[_\s]/g,' ')===pn)return true;
+        // "business name" pattern matches "business" header (all words present)
+        if(pn.includes(' ')&&pn.split(' ').every(w=>w.length>2&&h.includes(w)))return true;
+        return false;
+      });
+      if(hit){m[i]=f.key;used.add(i);break;}
+    }
+  });
+  return m;
+}
+function buildMapper(cId,headers,rows,fields,autoM){
+  const opts='<option value="">— skip —</option>'+fields.map(f=>`<option value="${f.key}">${f.label}</option>`).join('');
+  document.getElementById(cId).innerHTML='<div class="mapper-hdr"><span>Your Column</span><span>Sample Values</span><span>Maps To</span></div>'+
+    headers.map((h,i)=>{const sample=rows.slice(0,3).map(r=>(r[i]||'').slice(0,50)).filter(Boolean).join(' · ');return`<div class="mapper-row"><div class="mr-name">${esc(h)}</div><div class="mr-sample">${esc(sample)}</div><div class="mr-sel"><select data-col="${i}">${opts}</select></div></div>`;}).join('');
+  document.querySelectorAll(`#${cId} select[data-col]`).forEach(sel=>{const v=autoM[parseInt(sel.dataset.col)];if(v)sel.value=v;});
+}
+function getMapping(cId){const m={};document.querySelectorAll(`#${cId} select[data-col]`).forEach(sel=>{if(sel.value)m[sel.value]=parseInt(sel.dataset.col);});return m;}
+
+/* ══════════════════════════════════════════
+   DATA QUALITY CHECK
+══════════════════════════════════════════ */
+const BAD_NAME_PATTERNS=[
+  /^(we |our |since |whether |with a |a leading |a family|providing |offering |located |founded |established |installation|from our|at our|whether you|with over|when you|if you|they |their |this |the company|celebrating |discover |experience |providing |serving |helping |building |creating |delivering |making |bringing |offering |dedicated |committed )/i,
+  /^[a-z]/,
+];
+const SENTENCE_WORDS=new Set(['a','an','the','in','of','on','at','to','for','and','or','but','our','we','is','are','has','have','been','with','by','from','as','that','this','their','its','years','industry','company','business','service','services','quality','customers','solutions','team','your','all','over','more','than','who','when','if','they','their','since','while','through','about','into']);
+const US_STATES=new Set(['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']);
+
+function isSuspicious(name, website, state){
+  if(!name)return{bad:false};
+  // Name checks
+  if(name.length>65)return{bad:true,reason:'name too long'};
+  if(BAD_NAME_PATTERNS.some(p=>p.test(name)))return{bad:true,reason:'suspicious start'};
+  // Sentence detection: 5+ words with 2+ function words = likely a sentence not a business name
+  const words=name.toLowerCase().split(/\s+/);
+  if(words.length>=5){
+    const fnCount=words.filter(w=>SENTENCE_WORDS.has(w)).length;
+    if(fnCount>=2)return{bad:true,reason:'looks like a sentence'};
+  }
+  // Column-shift detection: if website doesn't look like a URL and state isn't a 2-letter code
+  if(website&&website.length>0&&!website.match(/^https?:\/\/|^www\.|^\S+\.\S+/)){
+    return{bad:true,reason:'column shift — website field looks wrong'};
+  }
+  if(state&&state.length>0&&state.length!==2&&!US_STATES.has(state.toUpperCase())){
+    return{bad:true,reason:'column shift — state field looks wrong'};
+  }
+  return{bad:false};
+}
+function runQualityCheck(rows,nameColIdx,websiteColIdx,stateColIdx){
+  badRowIndices.clear();excludedRowIndices.clear();
+  if(nameColIdx===undefined){document.getElementById('co-quality-wrap').style.display='none';return;}
+  const badReasons={};
+  rows.forEach((r,i)=>{
+    const name=(r[nameColIdx]||'').trim();
+    const website=websiteColIdx!==undefined?(r[websiteColIdx]||'').trim():'';
+    const state=stateColIdx!==undefined?(r[stateColIdx]||'').trim():'';
+    const check=isSuspicious(name,website,state);
+    if(check.bad){badRowIndices.add(i);badReasons[i]=check.reason;}
+  });
+  const wrap=document.getElementById('co-quality-wrap');
+  if(!badRowIndices.size){wrap.style.display='none';return;}
+  document.getElementById('q-summary').textContent=`${badRowIndices.size} suspicious rows detected — review before importing.`;
+  const qrows=document.getElementById('q-rows');
+  qrows.innerHTML=[...badRowIndices].slice(0,60).map(i=>{
+    const name=(rows[i][nameColIdx]||'').trim();
+    return`<div class="bad-row-item">
+      <input type="checkbox" id="bad-${i}" checked onchange="toggleBadRow(${i},this.checked)" style="width:auto;flex-shrink:0"/>
+      <span class="bad-row-name" title="${esc(name)}">${esc(name.slice(0,80))}</span>
+      <span style="font-size:10px;color:var(--red);flex-shrink:0">${badReasons[i]||'suspicious'}</span>
+    </div>`;
+  }).join('');
+  wrap.style.display='block';
+}
+function toggleBadRow(i,include){include?excludedRowIndices.delete(i):excludedRowIndices.add(i);}
+function excludeAllBad(){badRowIndices.forEach(i=>{excludedRowIndices.add(i);document.getElementById('bad-'+i).checked=false;});}
+function includeAllBad(){excludedRowIndices.clear();badRowIndices.forEach(i=>{const el=document.getElementById('bad-'+i);if(el)el.checked=true;});}
+
+/* ══════════════════════════════════════════
+   COMPANY IMPORT
+══════════════════════════════════════════ */
+function parseCompanyCSV(){
+  // If files already loaded via drop/select, use those directly
+  if(coParsedFiles.length>0){
+    const first=coParsedFiles[0];
+    coParsed=first.parsed;
+    hideErr('co-err');
+    const autoM=autoDetect(first.parsed.headers,CO_FIELDS);
+    buildMapper('co-mapper',first.parsed.headers,first.parsed.rows,CO_FIELDS,autoM);
+    document.getElementById('co-mwrap').style.display='block';
+    runQualityCheck(first.parsed.rows,autoM.name,autoM.website,autoM.state);
+    return;
+  }
+  // Fallback: parse from paste textarea
+  const raw=document.getElementById('co-paste').value.trim();
+  if(!raw){showErr('co-err','Paste rows or upload a file.');return;}
+  hideErr('co-err');
+  coParsed=parseCSVText(raw);
+  if(!coParsed){showErr('co-err','Could not parse CSV.');return;}
+  coParsedFiles=[{parsed:coParsed,filename:'paste'}];
+  document.getElementById('co-ps').textContent=`${coParsed.rows.length.toLocaleString()} rows`;
+  const autoM=autoDetect(coParsed.headers,CO_FIELDS);
+  buildMapper('co-mapper',coParsed.headers,coParsed.rows,CO_FIELDS,autoM);
+  document.getElementById('co-mwrap').style.display='block';
+  runQualityCheck(coParsed.rows,autoM.name,autoM.website,autoM.state);
+}
+
+async function importCompanies(){
+  if(!sbClient)return;
+  const m=getMapping('co-mapper');
+  if(m.name===undefined){showErr('co-err','Map the Company Name column.');return;}
+  hideErr('co-err');
+
+  const filesToProcess=coParsedFiles.length>0
+    ?coParsedFiles
+    :(coParsed?[{parsed:coParsed,filename:'paste'}]:[]);
+  if(!filesToProcess.length){showErr('co-err','No data to import.');return;}
+
+  const excludeNoWeb=document.getElementById('f-nowebsite').checked;
+  const tagEnterprise=document.getElementById('f-enterprise').checked;
+  const tagGovt=document.getElementById('f-govt').checked;
+  const useMinRev=document.getElementById('f-minrev').checked;
+  const minRev=useMinRev?parseRevenue(document.getElementById('f-minrev-val').value):0;
+
+  const st=document.getElementById('co-is');
+  st.textContent='Checking database...';
+
+  const{data:ex}=await sbClient.from('companies').select('id,domain').not('domain','is',null);
+  const existDomainToId={};(ex||[]).forEach(r=>{if(r.domain)existDomainToId[r.domain]=r.id;});
+  const existSet=new Set(Object.keys(existDomainToId));
+
+  const toIns=[],batchDomMap=new Map();
+  const extraContacts=[],locationUpdates={};
+  let dbDupes=0,batchDupes=0,qualitySkipped=0,filterSkipped=0;
+
+  for(const{parsed,filename}of filesToProcess){
+    const src=filename;
+    for(let rowIdx=0;rowIdx<parsed.rows.length;rowIdx++){
+      const row=parsed.rows[rowIdx];
+      if(parsed===coParsed&&excludedRowIndices.has(rowIdx)){qualitySkipped++;continue;}
+      const name=(row[m.name]||'').trim();if(!name)continue;
+      const website=m.website!==undefined?(row[m.website]||'').trim():'';
+      const domain=normalizeDomain(website);
+      const revenue=m.revenue!==undefined?(row[m.revenue]||''):'';
+      const employees=m.employees!==undefined?(row[m.employees]||''):'';
+      if(excludeNoWeb&&!domain){filterSkipped++;continue;}
+      if(useMinRev&&minRev>0&&revenue&&parseRevenue(revenue)>0&&parseRevenue(revenue)<minRev){filterSkipped++;continue;}
+      if(parsed!==coParsed){
+        const state=m.state!==undefined?(row[m.state]||''):'';
+        if(isSuspicious(name,website,state).bad){qualitySkipped++;continue;}
+      }
+      // Both email columns — pick best as primary, save other as extra contact
+      const rawEmail=m.email!==undefined?((row[m.email]||'').trim().toLowerCase()||null):null;
+      const rawContactEmail=m.contact_email!==undefined?((row[m.contact_email]||'').trim().toLowerCase()||null):null;
+      const cFirst=m.contact_first_name!==undefined?(row[m.contact_first_name]||null):null;
+      const cLast=m.contact_last_name!==undefined?(row[m.contact_last_name]||null):null;
+      const cRole=m.contact_role!==undefined?(row[m.contact_role]||null):null;
+      // Contact Email (named person) beats Email (generic) — use Contact Email as primary if available
+      // If Contact Email is empty, fall back to Email column
+      // If both exist and are different, save the secondary to contacts table
+      let cEmail=null,secondaryEmail=null;
+      if(rawContactEmail&&rawEmail&&rawContactEmail!==rawEmail){
+        // Both exist — prefer non-generic; Contact Email is usually named person
+        const contactGeneric=isGenericEmail(rawContactEmail);
+        const rawGeneric=isGenericEmail(rawEmail);
+        if(!contactGeneric){cEmail=rawContactEmail;secondaryEmail=rawEmail;}
+        else if(!rawGeneric){cEmail=rawEmail;secondaryEmail=rawContactEmail;}
+        else{cEmail=rawContactEmail;secondaryEmail=rawEmail;} // both generic, prefer Contact Email
+      } else {
+        cEmail=rawContactEmail||rawEmail||null;
+      }
+
+      if(domain&&existSet.has(domain)){
+        locationUpdates[domain]=(locationUpdates[domain]||0)+1;
+        if(cEmail)extraContacts.push({email:cEmail,first_name:cFirst,last_name:cLast,title:cRole,domain,match_status:'pending',source_file:src});
+        if(secondaryEmail)extraContacts.push({email:secondaryEmail,domain,match_status:'pending',source_file:src});
+        dbDupes++;continue;
+      }
+      if(domain&&batchDomMap.has(domain)){
+        batchDupes++;
+        const idx=batchDomMap.get(domain);
+        toIns[idx]._lc=(toIns[idx]._lc||1)+1;
+        if(!toIns[idx].contact_email&&cEmail){toIns[idx].contact_email=cEmail;toIns[idx].contact_first_name=cFirst;toIns[idx].contact_last_name=cLast;toIns[idx].contact_role=cRole;}
+        else if(cEmail&&cEmail!==toIns[idx].contact_email)extraContacts.push({email:cEmail,first_name:cFirst,last_name:cLast,title:cRole,domain,match_status:'pending',source_file:src});
+        if(secondaryEmail&&secondaryEmail!==toIns[idx].contact_email)extraContacts.push({email:secondaryEmail,domain,match_status:'pending',source_file:src});
+        continue;
+      }
+      const tags=[];
+      if(tagEnterprise||tagGovt){const t=detectTags(name,revenue,employees);if(t){if(tagEnterprise&&t.includes('enterprise'))tags.push('enterprise');if(tagGovt&&t.includes('government'))tags.push('government');}}
+      const entry={name,website:website||null,domain:domain||null,
+        categories:m.categories!==undefined?((row[m.categories]||'').slice(0,500)||null):null,
+        description:m.description!==undefined?((row[m.description]||'').slice(0,1000)||null):null,
+        sic:m.sic!==undefined?(row[m.sic]||null):null,naics:m.naics!==undefined?(row[m.naics]||null):null,
+        revenue:revenue||null,employees:employees||null,
+        founded:m.founded!==undefined?(row[m.founded]||null):null,
+        state:m.state!==undefined?(row[m.state]||null):null,city:m.city!==undefined?(row[m.city]||null):null,
+        contact_first_name:cFirst,contact_last_name:cLast,contact_role:cRole,contact_email:cEmail,
+        linkedin:m.linkedin!==undefined?(row[m.linkedin]||null):null,
+        tags:tags.length?tags.join(','):null,location_count:1,
+        status:'pending',source_file:src,_lc:1,
+      };
+      if(secondaryEmail)extraContacts.push({email:secondaryEmail,domain,match_status:'pending',source_file:src});
+      toIns.push(entry);if(domain)batchDomMap.set(domain,toIns.length-1);
+    }
+  }
+
+  const cleanIns=toIns.map(({_lc,...r})=>({...r,location_count:_lc||1}));
+  if(!cleanIns.length){st.textContent=`Nothing to insert. ${dbDupes} location dupes, ${batchDupes} in-file dupes, ${filterSkipped} filtered, ${qualitySkipped} quality-excluded.`;return;}
+
+  let ins=0;
+  for(let i=0;i<cleanIns.length;i+=1000){
+    const{error}=await sbClient.from('companies').insert(cleanIns.slice(i,i+1000));
+    if(error){showErr('co-err','Insert error: '+error.message);return;}
+    ins+=Math.min(1000,cleanIns.length-i);
+    st.textContent=`Inserting... ${ins.toLocaleString()} / ${cleanIns.length.toLocaleString()}`;
+  }
+
+  // Update location counts for existing companies
+  for(const[domain,extra]of Object.entries(locationUpdates)){
+    const id=existDomainToId[domain];
+    if(!id)continue;
+    const{data:cd}=await sbClient.from('companies').select('location_count').eq('id',id).single();
+    if(cd)await sbClient.from('companies').update({location_count:(cd.location_count||1)+extra}).eq('id',id);
+  }
+
+  // Save extra contacts
+  if(extraContacts.length){
+    const{data:ect}=await sbClient.from('contacts').select('email');
+    const eset=new Set((ect||[]).map(r=>(r.email||'').toLowerCase()));
+    const newEx=extraContacts.filter(c=>c.email&&!eset.has(c.email));
+    for(let i=0;i<newEx.length;i+=500)await sbClient.from('contacts').insert(newEx.slice(i,i+500));
+  }
+
+  const parts=[`✓ ${ins.toLocaleString()} companies imported`];
+  if(dbDupes)parts.push(`${dbDupes} location dupes tracked`);
+  if(batchDupes)parts.push(`${batchDupes} in-file dupes merged`);
+  if(filterSkipped)parts.push(`${filterSkipped} filtered`);
+  if(qualitySkipped)parts.push(`${qualitySkipped} quality-excluded`);
+  if(extraContacts.length)parts.push(`${extraContacts.length} extra contacts saved`);
+  st.textContent=parts.join(' · ');toast(parts[0],'ok');
+  document.getElementById('co-paste').value='';
+  document.getElementById('co-file-list').style.display='none';
+  document.getElementById('co-mwrap').style.display='none';
+  coParsed=null;coParsedFiles=[];loadDash();
+}
+
+
+/* ══════════════════════════════════════════
+   CLASSIFICATION
+══════════════════════════════════════════ */
+const SYS=`You classify companies into B2B sales verticals for a decal and print company. Precision matters — these verticals drive separate sales campaigns.
+
+VERTICALS — READ EACH DEFINITION CAREFULLY:
+
+- dumpster: Roll-off CONTAINER RENTAL. Customer rents an empty container that is dropped at their location; they fill it themselves. Key signals: "roll-off rental", "dumpster rental", "container rental", "we deliver and pick up". Does NOT include full-service junk removal.
+
+- junk_removal: FULL-SERVICE removal where a crew physically comes to remove items. The company does the labor. Key signals: "junk removal", "junk hauling", "estate cleanout", "we come to you", "same day removal", "1-800-got-junk style". Critical: if a company says "junk removal" in categories or description, classify as junk_removal NOT dumpster.
+
+- equipment: Heavy construction/industrial equipment RENTAL — excavators, skid steers, forklifts, boom lifts, aerial lifts, compactors, generators, scaffolding, trailers. Customer operates the equipment themselves.
+
+- propane: Propane/LP gas delivery, heating oil, diesel fuel, kerosene delivery to homes or businesses.
+
+- porta_potty: Portable restroom rental, portable sanitation, event/construction toilets, luxury restroom trailers, handwash stations.
+
+- septic: Septic tank pumping/installation/repair, drain cleaning, grease trap pumping, hydro jetting. NOT general plumbing.
+
+- waste: Large-scale COMMERCIAL or MUNICIPAL solid waste management — scheduled garbage collection routes with trucks, recycling facilities, transfer stations, landfills. NOT individual junk removal jobs. Scale signal: serves many customers on routes, not one-off jobs.
+
+- other: Does not clearly fit any vertical above.
+
+CRITICAL DISTINCTIONS:
+1. "Junk removal" in categories/description → ALWAYS junk_removal, never dumpster
+2. "Roll-off" or "container rental" → ALWAYS dumpster
+3. "Garbage collection" at route scale → waste; individual hauling jobs → junk_removal
+4. Company does BOTH junk removal AND dumpster rental → pick whichever appears first in categories or description
+5. "Debris removal" alone is ambiguous — look for "crew" or "we come to you" signals for junk_removal vs roll-off signals for dumpster
+
+SIGNAL PRIORITY: Google Maps categories > Business description > SIC/NAICS codes > Company name
+SIC: 4953=refuse/waste, 5171=petroleum, 5984=LP gas, 7359=equipment rental, 4959=junk/salvage
+NAICS: 5324=equipment rental, 5621=waste collection, 5622=waste treatment, 4247=petroleum wholesale, 5629=other waste
+
+Confidence: high=2+ clear signals agree | medium=1 clear signal | low=ambiguous or no useful data
+
+Return ONLY a valid JSON array — no markdown, no text before or after.`;
+
+function buildMsg(cos){
+  const items=cos.map((c,i)=>{const p=[];if(c.categories)p.push(`Categories: "${c.categories.slice(0,200)}"`);if(c.sic)p.push(`SIC: ${c.sic}`);if(c.naics)p.push(`NAICS: ${c.naics}`);const l1=`[${i+1}] "${c.name}"${p.length?' | '+p.join(' | '):''}`;const l2=c.description?`     Desc: "${c.description.slice(0,300)}"` :'';return l2?l1+'\n'+l2:l1;}).join('\n');
+  return`Classify these ${cos.length} companies:\n\n${items}\n\nReturn JSON array of exactly ${cos.length} objects:\n[{"vertical":"...","confidence":"high|medium|low","reason":"max 10 words"}]`;
+}
+async function callAPI(cos,ant){
+  const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ant,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4096,system:SYS,messages:[{role:'user',content:buildMsg(cos)}]})});
+  if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error?.message||`HTTP ${resp.status}`);}
+  const data=await resp.json();
+  const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  const match=text.match(/\[[\s\S]*\]/);if(!match)throw new Error('No JSON array in response');
+  let parsed;try{parsed=JSON.parse(match[0]);}catch(e){throw new Error('JSON parse failed');}
+  const vk=Object.keys(V);
+  return cos.map((_,i)=>{const r=parsed[i]||{};return{vertical:vk.includes(r.vertical)?r.vertical:'other',confidence:['high','medium','low'].includes(r.confidence)?r.confidence:'low',reason:String(r.reason||'').slice(0,200)};});
+}
+function setLane(i,state,text){const l=document.getElementById('lane-'+i),lv=document.getElementById('lv-'+i);if(!l)return;l.className='lane'+(state?' '+state:'');lv.textContent=text;}
+
+async function startClassify(){
+  if(!sbClient)return;
+  const ant=document.getElementById('cfg-ant').value.trim()||sessionStorage.getItem('ant_key');
+  if(!ant){showErr('proc-err','Anthropic API key required.');return;}
+  hideErr('proc-err');if(isRunning)return;
+  isRunning=true;shouldPause=false;
+  document.getElementById('btn-start').disabled=true;document.getElementById('btn-pause').disabled=false;
+  const bSz=parseInt(document.getElementById('batch-sz').value);
+  const conc=parseInt(document.getElementById('concurrency').value);
+  const limit=parseInt(document.getElementById('run-limit').value)||Infinity;
+  const fSz=bSz*conc;
+  for(let i=0;i<4;i++){if(i<conc){setLane(i,'','—');document.getElementById('lane-'+i).style.display='block';}else document.getElementById('lane-'+i).style.display='none';}
+  const{count:totalPend}=await sbClient.from('companies').select('id',{count:'exact',head:true}).eq('status','pending');
+  sessionTotal=Math.min(totalPend||0,limit);sessionDone=0;sessionStart=Date.now();
+  if(!sessionTotal){toast('No pending companies','info');resetProcUI();return;}
+  addLog(`Starting — ${sessionTotal.toLocaleString()} companies | ${conc}×${bSz} parallel`,'start');
+  updateProg(0,sessionTotal);
+
+  while(!shouldPause&&sessionDone<sessionTotal){
+    const{data:cos}=await sbClient.from('companies').select('id,name,categories,description,sic,naics').eq('status','pending').limit(Math.min(fSz,sessionTotal-sessionDone));
+    if(!cos||!cos.length)break;
+    await sbClient.from('companies').update({status:'processing'}).in('id',cos.map(c=>c.id));
+    const chunks=[];for(let i=0;i<cos.length;i+=bSz)chunks.push(cos.slice(i,i+bSz));
+    chunks.forEach((ch,i)=>setLane(i,'active',`${ch.length} companies...`));
+    const results=await Promise.allSettled(chunks.map((ch,i)=>callAPI(ch,ant).then(r=>{setLane(i,'done',`✓ ${ch.length}`);return r;}).catch(e=>{setLane(i,'err','Error');throw e;})));
+    const writes=[];
+    chunks.forEach((chunk,ci)=>{const res=results[ci];chunk.forEach((co,j)=>{if(res.status==='fulfilled'){const r=res.value[j]||{vertical:'other',confidence:'low',reason:'parse error'};const st=r.confidence==='low'?'needs_review':'done';writes.push(sbClient.from('companies').update({vertical:r.vertical,confidence:r.confidence,reason:r.reason,status:st,classified_at:new Date().toISOString()}).eq('id',co.id));}else writes.push(sbClient.from('companies').update({status:'error',reason:res.reason?.message||'API error'}).eq('id',co.id));});});
+    for(let i=0;i<writes.length;i+=200)await Promise.all(writes.slice(i,i+200));
+    sessionDone+=cos.length;addLog(`Round: ${cos.length} processed`,'ok');updateProg(sessionDone,sessionTotal);updateRateETA();document.getElementById('pc-done').textContent=sessionDone.toLocaleString();await delay(200);
+  }
+  const elapsed=((Date.now()-sessionStart)/1000).toFixed(0);
+  if(!shouldPause)addLog(`Done — ${sessionDone.toLocaleString()} in ${elapsed}s`,'done');
+  toast(shouldPause?`Paused at ${sessionDone}`:`Done — ${sessionDone.toLocaleString()} classified`,'ok');
+  resetProcUI();loadDash();
+}
+function pauseClassify(){shouldPause=true;document.getElementById('btn-pause').disabled=true;addLog('Pausing...','info');}
+async function resetStuck(){if(!sbClient)return;const{data}=await sbClient.from('companies').update({status:'pending'}).eq('status','processing').select('id');toast(`Reset ${(data||[]).length} stuck`,'ok');}
+async function reclassifyAll(){if(!confirm('Reset ALL classified companies to pending and re-run classification? This will improve accuracy with the updated verticals including the new Junk Removal category.'))return;const{data}=await sbClient.from('companies').update({status:'pending',vertical:null,confidence:null,reason:null}).in('status',['done','needs_review']).select('id');allBrowse=allBrowse.map(r=>({...r,status:'pending',vertical:null}));filterBrowse();toast(`${(data||[]).length} companies reset — hit Start to re-classify`,'ok');loadDash();}
+function resetProcUI(){isRunning=false;shouldPause=false;document.getElementById('btn-start').disabled=false;document.getElementById('btn-pause').disabled=true;for(let i=0;i<4;i++)setLane(i,'','—');}
+function updateProg(d,t){const p=t?Math.round(d/t*100):0;document.getElementById('pg-fill').style.width=p+'%';document.getElementById('pg-pct').textContent=p+'%';document.getElementById('pg-lbl').textContent=`${d.toLocaleString()} / ${t.toLocaleString()}`;}
+function updateRateETA(){const e=(Date.now()-sessionStart)/60000;if(e<0.1)return;const r=Math.round(sessionDone/e);document.getElementById('pc-rate').textContent=r.toLocaleString()+'/min';const eta=(sessionTotal-sessionDone)/r;document.getElementById('pc-eta').textContent=eta<1?'<1 min':Math.round(eta)+' min';}
+
+function addLog(msg,type='info'){logEntries.unshift({msg,type,time:new Date().toLocaleTimeString()});if(logEntries.length>300)logEntries.pop();renderLog();}
+function renderLog(){const el=document.getElementById('log-el');if(!logEntries.length){el.innerHTML='<div style="padding:10px 12px;color:var(--muted);font-size:10px">No activity.</div>';return;}const cm={ok:'var(--green)',err:'var(--red)',rv:'var(--yellow)',start:'var(--accent)',done:'var(--accent)',info:'var(--muted)'};el.innerHTML=logEntries.map(e=>`<div class="log-row"><span class="log-time">${e.time}</span><span class="log-msg" style="color:${cm[e.type]||'var(--muted)'}">${esc(e.msg)}</span></div>`).join('');}
+function clearLog(){logEntries=[];renderLog();}
+
+/* ══════════════════════════════════════════
+   REVIEW
+══════════════════════════════════════════ */
+async function loadReview(){
+  if(!sbClient)return;
+  const{data}=await sbClient.from('companies').select('*').eq('status','needs_review').order('created_at',{ascending:false}).limit(150);
+  document.getElementById('rv-ct').textContent=(data||[]).length+' items';
+  const el=document.getElementById('rv-list');
+  if(!data||!data.length){el.innerHTML='<div class="empty">Nothing to review!</div>';return;}
+  el.innerHTML=data.map(r=>`<div class="rv" id="rv-${r.id}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px">
+      <div class="rv-name">${esc(r.name)}</div>
+      <button class="btn btn-r btn-sm" onclick="deleteCompany('${r.id}')">🗑 Delete</button>
+    </div>
+    <div class="rv-meta">${r.website?`<a href="https://${esc(r.website)}" target="_blank" style="color:var(--accent);text-decoration:none;font-family:var(--mono);font-size:10px">${esc(r.website)}</a>`:'no website'}${r.state?' · '+esc(r.state):''}${r.city?' · '+esc(r.city):''}</div>
+    ${r.categories?`<div style="font-size:11px;color:var(--cyan);margin-bottom:4px;font-family:var(--mono)">📍 ${esc(r.categories.slice(0,150))}</div>`:''}
+    ${r.description?`<div class="rv-reason">${esc(r.description.slice(0,250))}</div>`:''}
+    <div style="display:flex;gap:12px;margin-bottom:10px;font-size:11px;color:var(--muted);flex-wrap:wrap">
+      ${r.sic?`<span>SIC: <strong style="color:var(--text)">${esc(r.sic)}</strong></span>`:''}
+      ${r.naics?`<span>NAICS: <strong style="color:var(--text)">${esc(r.naics)}</strong></span>`:''}
+      ${r.revenue?`<span>Rev: <strong style="color:var(--text)">${esc(r.revenue)}</strong></span>`:''}
+      ${(r.contact_first_name||r.contact_last_name)?`<span>Contact: <strong style="color:var(--text)">${esc([r.contact_first_name,r.contact_last_name].filter(Boolean).join(' '))}</strong></span>`:''}
+    </div>
+    ${r.vertical?`<div style="margin-bottom:8px">${vbadge(r.vertical)}<span style="font-size:10px;color:var(--muted);margin-left:6px">Claude's guess · ${esc(r.reason||'')}</span></div>`:''}
+    <div class="vp-row">
+      ${Object.entries(V).map(([k,v])=>`<button class="vp" style="${r.vertical===k?`background:${v.color};color:#000;border-color:${v.color}`:''}" onclick="setVert('${r.id}','${k}')">${v.emoji} ${v.label.split('/')[0]}</button>`).join('')}
+      <button class="btn btn-g btn-sm" onclick="skipRv('${r.id}')">Skip</button>
+    </div></div>`).join('');
+}
+async function setVert(id,v){await sbClient.from('companies').update({vertical:v,status:'done',confidence:'high',reason:'Manually classified',classified_at:new Date().toISOString()}).eq('id',id);const el=document.getElementById('rv-'+id);if(el){el.style.opacity='0';el.style.transition='opacity .25s';setTimeout(()=>el.remove(),250);}toast('→ '+V[v]?.label,'ok');}
+async function skipRv(id){await sbClient.from('companies').update({status:'done'}).eq('id',id);document.getElementById('rv-'+id)?.remove();}
+async function deleteCompany(id){if(!confirm('Delete this company permanently?'))return;await sbClient.from('companies').delete().eq('id',id);document.getElementById('rv-'+id)?.remove();toast('Deleted','ok');}
+
+/* ══════════════════════════════════════════
+   BROWSE + BULK ACTIONS
+══════════════════════════════════════════ */
+async function loadBrowse(){
+  if(!sbClient)return;
+  const{data}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override').order('name').limit(3000);
+  allBrowse=data||[];selectedRows.clear();updateBulkBar();filterBrowse();
+}
+function filterBrowse(){
+  const q=(document.getElementById('br-search').value||'').toLowerCase();
+  const v=document.getElementById('br-vert').value;
+  const s=document.getElementById('br-status').value;
+  const st=document.getElementById('br-state').value;
+  const nw=document.getElementById('br-noweb')?.checked;
+  let rows=allBrowse;
+  if(q)rows=rows.filter(r=>(r.name||'').toLowerCase().includes(q)||(r.website||'').toLowerCase().includes(q)||(r.state||'').toLowerCase().includes(q));
+  if(v)rows=rows.filter(r=>r.vertical===v);
+  if(s)rows=rows.filter(r=>r.status===s);
+  if(st)rows=rows.filter(r=>(r.state||'').toUpperCase()===st);
+  if(nw)rows=rows.filter(r=>!r.website);
+  rows=[...rows].sort((a,b)=>{
+    if(browseSort.col==='_score'){
+      const sa=calcScore(a),sb=calcScore(b);
+      return browseSort.dir==='asc'?sa-sb:sb-sa;
+    }
+    const av=String(a[browseSort.col]||'').toLowerCase(),bv=String(b[browseSort.col]||'').toLowerCase();
+    return browseSort.dir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+  });
+  document.getElementById('br-count').textContent=`Showing ${rows.length.toLocaleString()} of ${allBrowse.length.toLocaleString()}`;
+  const el=document.getElementById('br-table');
+  if(!rows.length){el.innerHTML='<div class="empty">No companies match.</div>';return;}
+  const sa=col=>{if(browseSort.col!==col)return'<span style="color:var(--muted2)"> ⇅</span>';return browseSort.dir==='asc'?' ↑':' ↓';};
+  const th=(col,lbl)=>`<th class="sort" onclick="sortBrowse('${col}')">${lbl}${sa(col)}</th>`;
+  let html=`<table><thead><tr>
+    <th><input type="checkbox" id="sel-all" onclick="toggleSelectAll(this)" style="width:auto"/></th>
+    ${th('name','Company')}${th('website','Website')}${th('state','ST')}
+    <th>Categories</th>${th('vertical','Vertical')}${th('_score','Score')}
+    <th>Tags</th><th>Contact</th>${th('status','Status')}<th></th>
+  </tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const sel=selectedRows.has(r.id);
+    const sc=calcScore(r); const tier=scoreTier(sc);
+    const tagBadges=(r.tags||'').split(',').filter(Boolean).map(t=>
+      `<span style="font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;background:${t==='enterprise'?'rgba(59,130,246,.15)':t==='government'?'rgba(234,179,8,.15)':'var(--s3)'};color:${t==='enterprise'?'var(--blue)':t==='government'?'var(--yellow)':'var(--muted)'}">${t}</span>`
+    ).join(' ');
+    html+=`<tr class="${sel?'selected':''}" id="brow-${r.id}">
+      <td><input type="checkbox" ${sel?'checked':''} onclick="toggleRowSelect('${r.id}',this)" style="width:auto"/></td>
+      <td class="cn clickable" onclick="openDrawer('${r.id}')">${esc(r.name)}</td>
+      <td class="mn">${r.website?`<a href="https://${esc(r.website)}" target="_blank" style="color:var(--accent);text-decoration:none">${esc(r.website)}</a>`:'<span style="color:var(--red);font-size:10px">no website</span>'}</td>
+      <td class="mn">${esc(r.state||'—')}</td>
+      <td style="font-size:11px;color:var(--muted);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.categories||'')}">${esc((r.categories||'—').slice(0,45))}</td>
+      <td>${r.vertical?vbadge(r.vertical):'—'}</td>
+      <td><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${tier.color}">${tier.emoji} ${tier.tier}</span><span style="font-family:var(--mono);font-size:10px;color:var(--muted)"> ${sc}</span></td>
+      <td>${tagBadges||'—'}</td>
+      <td class="mn">${esc([r.contact_first_name,r.contact_last_name].filter(Boolean).join(' ')||r.contact_email||'—')}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td><button class="btn btn-r btn-sm" onclick="deleteBrowse('${r.id}',this)">🗑</button></td>
+    </tr>`;
+  });
+  el.innerHTML=html+'</tbody></table>';
+}
+function sortBrowse(col){if(browseSort.col===col)browseSort.dir=browseSort.dir==='asc'?'desc':'asc';else{browseSort.col=col;browseSort.dir='asc';}filterBrowse();}
+function statusBadge(s){const m={done:['var(--green)','rgba(34,197,94,.1)'],needs_review:['var(--yellow)','rgba(234,179,8,.1)'],pending:['var(--muted)','var(--s3)'],error:['var(--red)','rgba(239,68,68,.1)'],processing:['var(--blue)','rgba(59,130,246,.1)']};const[col,bg]=m[s]||m.pending;return`<span class="sb" style="color:${col};background:${bg}">${s}</span>`;}
+async function deleteBrowse(id,btn){if(!confirm('Delete this company?'))return;await sbClient.from('companies').delete().eq('id',id);btn.closest('tr').remove();allBrowse=allBrowse.filter(r=>r.id!==id);filterBrowse();toast('Deleted','ok');}
+async function deleteNoWebsite(){if(!sbClient)return;const{data}=await sbClient.from('companies').select('id').is('website',null).is('domain',null);if(!data||!data.length){toast('No companies without website','info');return;}if(!confirm(`Delete ${data.length} companies with no website?`))return;const ids=data.map(r=>r.id);for(let i=0;i<ids.length;i+=200)await sbClient.from('companies').delete().in('id',ids.slice(i,i+200));toast(`Deleted ${ids.length}`,'ok');loadBrowse();loadDash();}
+
+// BULK
+function toggleRowSelect(id,cb){if(cb.checked)selectedRows.add(id);else selectedRows.delete(id);const tr=document.getElementById('brow-'+id);if(tr)tr.classList.toggle('selected',cb.checked);updateBulkBar();}
+function toggleSelectAll(cb){const tbl=document.getElementById('br-table');tbl.querySelectorAll('tbody tr').forEach(tr=>{const rowId=tr.id.replace('brow-','');const checkbox=tr.querySelector('input[type=checkbox]');if(checkbox){checkbox.checked=cb.checked;if(cb.checked)selectedRows.add(rowId);else selectedRows.delete(rowId);tr.classList.toggle('selected',cb.checked);}});updateBulkBar();}
+function updateBulkBar(){const n=selectedRows.size;const bar=document.getElementById('bulk-bar');bar.classList.toggle('show',n>0);document.getElementById('bulk-count').textContent=`${n} selected`;}
+function clearBulk(){selectedRows.clear();updateBulkBar();filterBrowse();}
+async function bulkDelete(){if(!selectedRows.size)return;if(!confirm(`Delete ${selectedRows.size} companies?`))return;const ids=[...selectedRows];for(let i=0;i<ids.length;i+=200)await sbClient.from('companies').delete().in('id',ids.slice(i,i+200));allBrowse=allBrowse.filter(r=>!selectedRows.has(r.id));selectedRows.clear();updateBulkBar();filterBrowse();loadDash();toast(`Deleted ${ids.length}`,'ok');}
+async function bulkReclassify(){if(!selectedRows.size)return;const ids=[...selectedRows];await sbClient.from('companies').update({status:'pending',vertical:null,confidence:null,reason:null}).in('id',ids);allBrowse=allBrowse.map(r=>selectedRows.has(r.id)?{...r,status:'pending',vertical:null}:r);selectedRows.clear();updateBulkBar();filterBrowse();toast(`${ids.length} set to pending — hit Start to classify`,'ok');}
+async function bulkAssignVertical(){const v=document.getElementById('bulk-vert-sel').value;if(!v||!selectedRows.size)return;const ids=[...selectedRows];await sbClient.from('companies').update({vertical:v,status:'done',confidence:'high',reason:'Manually classified'}).in('id',ids);allBrowse=allBrowse.map(r=>selectedRows.has(r.id)?{...r,vertical:v,status:'done'}:r);selectedRows.clear();updateBulkBar();filterBrowse();toast(`${ids.length} assigned to ${V[v]?.label}`,'ok');}
+
+/* ══════════════════════════════════════════
+   COMPANY DRAWER
+══════════════════════════════════════════ */
+async function openDrawer(id){
+  currentDrawerId=id;
+  const co=allBrowse.find(r=>r.id===id);
+  if(!co)return;
+  document.getElementById('dr-name').textContent=co.name;
+  document.getElementById('dr-meta').textContent=[co.website||'no website',co.state,co.city].filter(Boolean).join(' · ');
+  document.getElementById('dr-body').innerHTML='<div style="padding:20px;color:var(--muted);font-family:var(--mono);font-size:11px">Loading...</div>';
+  document.getElementById('company-drawer').classList.add('open');
+  document.getElementById('drawer-overlay').classList.add('open');
+
+  // Load linked contacts
+  const{data:contacts}=await sbClient.from('contacts').select('*,campaigns(name)').eq('company_id',id).limit(20);
+
+  let html='';
+  // Vertical editor
+  // Score badge
+  const sc=calcScore(co);const tier=scoreTier(sc);
+  const isOverride=co.score_override!=null&&co.score_override>=0;
+  html+=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px 14px;background:var(--s2);border:1px solid ${isOverride?'var(--accent)':'var(--bd)'};border-radius:8px">
+    <div style="text-align:center">
+      <div style="font-family:var(--mono);font-size:28px;font-weight:700;color:${tier.color}">${tier.emoji} ${tier.tier}</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">${sc}/100${isOverride?' 🔒':''}</div>
+    </div>
+    <div style="flex:1;font-size:12px;color:var(--muted)">
+      ${co.revenue?`<div>Revenue: <strong style="color:var(--text)">${esc(co.revenue)}</strong></div>`:''}
+      ${co.employees?`<div>Employees: <strong style="color:var(--text)">${esc(co.employees)}</strong></div>`:''}
+      ${(co.location_count||1)>1?`<div>Locations: <strong style="color:var(--cyan)">${co.location_count}</strong></div>`:''}
+      ${co.founded?`<div>Founded: <strong style="color:var(--text)">${esc(co.founded)}</strong></div>`:''}
+      ${co.tags?`<div style="margin-top:4px">${(co.tags||'').split(',').filter(Boolean).map(t=>`<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;margin-right:4px;background:${t==='enterprise'?'rgba(59,130,246,.2)':'rgba(234,179,8,.2)'};color:${t==='enterprise'?'var(--blue)':'var(--yellow)'}">${t}</span>`).join('')}</div>`:''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Override</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="number" id="dr-score-override" min="0" max="100" value="${isOverride?co.score_override:''}" placeholder="auto" style="background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:5px 8px;color:var(--text);font-family:var(--mono);font-size:13px;width:72px;outline:none;text-align:center"/>
+        <button class="btn btn-o btn-sm" onclick="saveScoreOverride('${id}')">Set</button>
+        ${isOverride?`<button class="btn btn-g btn-sm" onclick="clearScoreOverride('${id}')">Clear</button>`:''}
+      </div>
+      <div style="font-size:10px;color:var(--muted2)">0–100, blank = auto</div>
+    </div>
+  </div>`;
+
+  html+=`<div class="dr-section"><h4>Vertical</h4>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      ${Object.entries(V).map(([k,v])=>`<button class="vp" style="${co.vertical===k?`background:${v.color};color:#000;border-color:${v.color}`:''}" onclick="drawerSetVert('${id}','${k}')">${v.emoji} ${v.label.split('/')[0]}</button>`).join('')}
+    </div>
+    ${co.confidence?`<div style="font-size:11px;color:var(--muted)">Confidence: <span style="color:${co.confidence==='high'?'var(--green)':co.confidence==='medium'?'var(--yellow)':'var(--red)'}">${co.confidence}</span> · ${esc(co.reason||'')}</div>`:''}
+  </div>`;
+
+  // Company details
+  html+=`<div class="dr-section"><h4>Company Details</h4><div class="dr-grid">`;
+  const fields=[
+    ['Website', co.website?`<a href="https://${esc(co.website)}" target="_blank">${esc(co.website)}</a>`:null, 'link'],
+    ['State', co.state],['City', co.city],
+    ['Revenue', co.revenue],['Employees', co.employees],
+    ['Locations', (co.location_count||1)>1?String(co.location_count):null],
+    ['SIC', co.sic],['NAICS', co.naics],
+    ['LinkedIn', co.linkedin?`<a href="${esc(co.linkedin)}" target="_blank" style="color:var(--blue)">${esc(co.linkedin.replace('https://www.linkedin.com/','li.com/'))}</a>`:null,'link'],
+    ['Source', co.source_file],
+  ];
+  fields.forEach(([l,val,cls])=>{if(val)html+=`<div class="dr-field"><div class="dl">${l}</div><div class="dv ${cls||'mono'}">${val}</div></div>`;});
+  html+=`</div>`;
+  if(co.categories)html+=`<div class="dr-field" style="margin-bottom:8px"><div class="dl">Categories</div><div class="dv" style="font-size:11px;color:var(--cyan)">${esc(co.categories)}</div></div>`;
+  if(co.description)html+=`<div class="dr-field"><div class="dl">Description</div><div class="dv" style="font-size:12px;line-height:1.6">${esc(co.description)}</div></div>`;
+  html+='</div>';
+
+  // Leadscraper contact
+  if(co.contact_email||co.contact_first_name){
+    html+=`<div class="dr-section"><h4>Leadscraper Contact</h4>
+      <div class="contact-item">
+        ${(co.contact_first_name||co.contact_last_name)?`<div class="cn">${esc([co.contact_first_name,co.contact_last_name].filter(Boolean).join(' '))}</div>`:''}
+        ${co.contact_role?`<div class="ct">${esc(co.contact_role)}</div>`:''}
+        ${co.contact_email?`<div class="ce">${esc(co.contact_email)}</div>`:''}
+      </div>
+    </div>`;
+  }
+
+  // Clay contacts
+  if(contacts&&contacts.length){
+    html+=`<div class="dr-section"><h4>Clay Contacts (${contacts.length})</h4>`;
+    contacts.forEach(c=>{
+      html+=`<div class="contact-item">
+        ${(c.first_name||c.last_name)?`<div class="cn">${esc([c.first_name,c.last_name].filter(Boolean).join(' '))}</div>`:''}
+        ${c.title?`<div class="ct">${esc(c.title)}</div>`:''}
+        ${c.email?`<div class="ce">${esc(c.email)}</div>`:''}
+        ${c.campaigns?.name?`<div style="font-size:10px;color:var(--accent);margin-top:4px;font-family:var(--mono)">📢 ${esc(c.campaigns.name)}</div>`:''}
+        ${c.suppressed?`<div style="font-size:10px;color:var(--red);margin-top:2px">⛔ Suppressed${c.suppressed_reason?' · '+c.suppressed_reason:''}</div>`:''}
+      </div>`;
+    });
+    html+='</div>';
+  } else if(!co.contact_email) {
+    html+=`<div class="dr-section"><h4>Contacts</h4><div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:12px;font-size:12px;color:var(--red)">⚠ No contacts found — this company needs Clay research.</div></div>`;
+  }
+
+  document.getElementById('dr-body').innerHTML=html;
+}
+
+async function drawerSetVert(id,v){
+  await sbClient.from('companies').update({vertical:v,status:'done',confidence:'high',reason:'Manually classified',classified_at:new Date().toISOString()}).eq('id',id);
+  allBrowse=allBrowse.map(r=>r.id===id?{...r,vertical:v,status:'done'}:r);
+  document.getElementById('dr-meta').textContent+=' · Updated';
+  toast('→ '+V[v]?.label,'ok');
+  document.querySelectorAll('#dr-body .vp').forEach(btn=>{btn.style.background='';btn.style.color='';btn.style.borderColor='';});
+}
+
+async function saveScoreOverride(id){
+  const val=document.getElementById('dr-score-override').value.trim();
+  const num=val===''?null:Math.min(100,Math.max(0,parseInt(val)));
+  if(val!==''&&isNaN(num)){toast('Enter a number 0–100','err');return;}
+  await sbClient.from('companies').update({score_override:num}).eq('id',id);
+  allBrowse=allBrowse.map(r=>r.id===id?{...r,score_override:num}:r);
+  toast(num==null?'Override cleared':`Score locked to ${num}`,'ok');
+  openDrawer(id);
+}
+
+async function clearScoreOverride(id){
+  await sbClient.from('companies').update({score_override:null}).eq('id',id);
+  allBrowse=allBrowse.map(r=>r.id===id?{...r,score_override:null}:r);
+  toast('Back to auto-score','ok');
+  openDrawer(id);
+}
+
+async function reclassifySingle(){
+  if(!currentDrawerId)return;
+  await sbClient.from('companies').update({status:'pending',vertical:null,confidence:null,reason:null}).eq('id',currentDrawerId);
+  allBrowse=allBrowse.map(r=>r.id===currentDrawerId?{...r,status:'pending',vertical:null}:r);
+  closeDrawer();filterBrowse();
+  toast('Set to pending — go to Companies tab and hit Start','ok');
+}
+
+function closeDrawer(){document.getElementById('company-drawer').classList.remove('open');document.getElementById('drawer-overlay').classList.remove('open');currentDrawerId=null;}
+
+/* ══════════════════════════════════════════
+   CONTACT IMPORT + MATCHING
+══════════════════════════════════════════ */
+function parseContactCSV(){const raw=document.getElementById('ct-paste').value.trim();if(!raw){showErr('ct-err','Paste rows or upload a file.');return;}hideErr('ct-err');ctParsed=parseCSVText(raw);if(!ctParsed){showErr('ct-err','Could not parse.');return;}document.getElementById('ct-ps').textContent=`${ctParsed.rows.length.toLocaleString()} rows`;buildMapper('ct-mapper',ctParsed.headers,ctParsed.rows,CT_FIELDS,autoDetect(ctParsed.headers,CT_FIELDS));document.getElementById('ct-mwrap').style.display='block';}
+async function importContacts(){
+  if(!sbClient||!ctParsed)return;const m=getMapping('ct-mapper');if(m.email===undefined){showErr('ct-err','Map the Email column.');return;}hideErr('ct-err');
+  const src=document.getElementById('ct-src').value.trim();const st=document.getElementById('ct-is');st.textContent='Checking duplicates...';
+  const{data:ex}=await sbClient.from('contacts').select('email');const eSet=new Set((ex||[]).map(r=>(r.email||'').toLowerCase()));
+  const toIns=[];
+  ctParsed.rows.forEach(row=>{
+    const email=(row[m.email]||'').trim().toLowerCase();if(!email||eSet.has(email))return;
+    const website=m.website!==undefined?(row[m.website]||'').trim():'';
+    toIns.push({email,first_name:m.first_name!==undefined?(row[m.first_name]||null):null,last_name:m.last_name!==undefined?(row[m.last_name]||null):null,title:m.title!==undefined?(row[m.title]||null):null,company_name:m.company_name!==undefined?(row[m.company_name]||null):null,website:website||null,domain:normalizeDomain(website)||null,match_status:'pending',source_file:src||null});
+  });
+  if(!toIns.length){st.textContent='All already exist.';return;}
+  let ins=0;for(let i=0;i<toIns.length;i+=1000){const{error}=await sbClient.from('contacts').insert(toIns.slice(i,i+1000));if(error){showErr('ct-err','Error: '+error.message);return;}ins+=Math.min(1000,toIns.length-i);st.textContent=`Inserting ${ins.toLocaleString()}...`;}
+  st.textContent=`✓ ${ins.toLocaleString()} imported`;toast(`${ins.toLocaleString()} contacts imported`,'ok');document.getElementById('ct-paste').value='';document.getElementById('ct-mwrap').style.display='none';ctParsed=null;loadDash();
+}
+async function runMatching(){
+  if(!sbClient)return;const st=document.getElementById('match-st');st.textContent='Loading...';
+  const{data:cos}=await sbClient.from('companies').select('id,domain').not('domain','is',null).in('status',['done','needs_review']);
+  const dm={};(cos||[]).forEach(c=>{if(c.domain)dm[c.domain]=c.id;});
+  const{data:cts}=await sbClient.from('contacts').select('id,domain').eq('match_status','pending').not('domain','is',null);
+  if(!cts||!cts.length){st.textContent='No pending contacts.';return;}
+  let matched=0,unmatched=0;
+  for(let i=0;i<cts.length;i+=200){const chunk=cts.slice(i,i+200);await Promise.all(chunk.map(ct=>{const cid=dm[ct.domain];return cid?sbClient.from('contacts').update({company_id:cid,match_status:'matched'}).eq('id',ct.id):sbClient.from('contacts').update({match_status:'unmatched'}).eq('id',ct.id);}));chunk.forEach(ct=>{dm[ct.domain]?matched++:unmatched++;});st.textContent=`${matched.toLocaleString()} matched, ${unmatched.toLocaleString()} unmatched...`;}
+  const msg=`✓ ${matched.toLocaleString()} matched, ${unmatched.toLocaleString()} unmatched`;st.textContent=msg;toast(msg,'ok');loadDash();
+}
+
+/* ══════════════════════════════════════════
+   MISSING CONTACTS
+══════════════════════════════════════════ */
+let missingData=[];
+async function loadMissing(){
+  if(!sbClient)return;
+  document.getElementById('missing-ct').textContent='Loading...';
+  // Companies that are classified, have no leadscraper contact email, and have no matched Clay contacts
+  const{data:companiesWithContacts}=await sbClient.from('contacts').select('company_id').eq('match_status','matched').not('company_id','is',null);
+  const hasContactSet=new Set((companiesWithContacts||[]).map(r=>r.company_id));
+  const{data:cos}=await sbClient.from('companies').select('id,name,website,state,vertical,categories').in('status',['done','needs_review']).is('contact_email',null);
+  missingData=(cos||[]).filter(c=>!hasContactSet.has(c.id));
+  document.getElementById('missing-ct').textContent=`${missingData.length} companies need contacts`;
+  document.getElementById('st-missing').textContent=missingData.length;
+  const el=document.getElementById('missing-list');
+  if(!missingData.length){el.innerHTML='<div class="empty">All classified companies have at least one contact. 🎉</div>';return;}
+  el.innerHTML=missingData.slice(0,100).map(r=>`
+    <div class="missing-item">
+      <div style="flex:1">
+        <div class="mi-name">${esc(r.name)}</div>
+        <div class="mi-meta">${r.website?`<a href="https://${esc(r.website)}" target="_blank" style="color:var(--accent);text-decoration:none;font-family:var(--mono);font-size:10px">${esc(r.website)}</a>`:'no website'} ${r.state?'· '+r.state:''}</div>
+      </div>
+      ${r.vertical?vbadge(r.vertical):'—'}
+    </div>`).join('')+
+    (missingData.length>100?`<div style="padding:12px;color:var(--muted);font-size:12px;text-align:center">... and ${missingData.length-100} more — export to see all</div>`:'');
+}
+async function exportMissing(){
+  if(!missingData.length){toast('Run "Find Missing" first','err');return;}
+  const wb=XLSX.utils.book_new();
+  const rows=missingData.map(c=>({Company_Name:c.name||'',Website:c.website||'',State:c.state||'',Vertical:c.vertical||'',Vertical_Label:V[c.vertical]?.label||'',Categories:(c.categories||'').slice(0,200)}));
+  const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:30},{wch:25},{wch:8},{wch:14},{wch:22},{wch:50}];
+  XLSX.utils.book_append_sheet(wb,ws,'Missing Contacts');
+  XLSX.writeFile(wb,`pfg-missing-contacts-${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(`Exported ${missingData.length} companies`,'ok');
+}
+
+async function loadContactsTable(){
+  if(!sbClient)return;
+  const{data}=await sbClient.from('contacts').select('*,companies(name,vertical),campaigns(name)').order('created_at',{ascending:false}).limit(1000);
+  allContacts=data||[];filterContacts();
+}
+function filterContacts(){
+  const q=(document.getElementById('ct-srch').value||'').toLowerCase();
+  const ms=document.getElementById('ct-fm').value;
+  const camp=document.getElementById('ct-fcamp').value;
+  let rows=allContacts;
+  if(q)rows=rows.filter(r=>(r.email||'').toLowerCase().includes(q)||(r.company_name||'').toLowerCase().includes(q));
+  if(ms)rows=rows.filter(r=>r.match_status===ms);
+  if(camp)rows=rows.filter(r=>r.campaign_id===camp);
+  const el=document.getElementById('ct-tbl');
+  if(!rows.length){el.innerHTML='<div class="empty">No contacts.</div>';return;}
+  let html=`<table><thead><tr><th>Email</th><th>Name</th><th>Title</th><th>Company</th><th>Vertical</th><th>Campaign</th><th>Match</th><th>Suppressed</th></tr></thead><tbody>`;
+  rows.forEach(r=>{const co=r.companies;html+=`<tr><td class="mn">${esc(r.email||'—')}</td><td class="cn">${esc([r.first_name,r.last_name].filter(Boolean).join(' ')||'—')}</td><td style="font-size:11px;color:var(--muted)">${esc(r.title||'—')}</td><td>${esc(r.company_name||co?.name||'—')}</td><td>${co?.vertical?vbadge(co.vertical):'—'}</td><td style="font-size:11px;color:var(--accent)">${esc(r.campaigns?.name||'—')}</td><td>${matchBadge(r.match_status)}</td><td>${r.suppressed?'<span style="color:var(--red);font-family:var(--mono);font-size:9px">⛔ yes</span>':'—'}</td></tr>`;});
+  el.innerHTML=html+'</tbody></table>';
+}
+
+/* ══════════════════════════════════════════
+   CAMPAIGNS
+══════════════════════════════════════════ */
+async function loadCampaigns(){
+  if(!sbClient)return;
+  const{data}=await sbClient.from('campaigns').select('*').order('vertical,name');
+  allCampaigns=data||[];
+  document.getElementById('nb-camp').textContent=allCampaigns.length;
+  populateCampaignDropdowns();
+  renderCampaigns();
+}
+function populateCampaignDropdowns(){
+  ['ct-fcamp'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">All Campaigns</option>'+allCampaigns.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');sel.value=cur;});
+}
+async function renderCampaigns(){
+  const el=document.getElementById('camp-list');
+  if(!allCampaigns.length){el.innerHTML='<div class="empty">No campaigns yet. Create one above.</div>';return;}
+  // Get contact counts per campaign
+  const{data:counts}=await sbClient.from('contacts').select('campaign_id').not('campaign_id','is',null);
+  const countMap={};(counts||[]).forEach(r=>{countMap[r.campaign_id]=(countMap[r.campaign_id]||0)+1;});
+  el.innerHTML=allCampaigns.map(c=>{
+    const v=V[c.vertical]||V.other;
+    const cnt=countMap[c.id]||0;
+    return`<div class="camp-card">
+      <div style="width:4px;border-radius:2px;background:${v.color};flex-shrink:0;align-self:stretch"></div>
+      <div class="cc-info">
+        <div class="cc-name">${esc(c.name)}</div>
+        <div class="cc-meta">${v.emoji} ${v.label} · ${esc(c.sending_domain||'no domain')} · <span style="color:${c.status==='active'?'var(--green)':'var(--muted)'}">${c.status}</span></div>
+        ${c.states?`<div class="cc-states">States: ${esc(c.states)}</div>`:`<div class="cc-states">All states</div>`}
+        ${c.instantly_id?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted2);margin-top:3px">Instantly: ${esc(c.instantly_id)}</div>`:''}
+      </div>
+      <div>
+        <div class="cc-count">${cnt}</div>
+        <div class="cc-clabel">contacts</div>
+        <button class="btn btn-r btn-sm" style="margin-top:8px" onclick="deleteCampaign('${c.id}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function createCampaign(){
+  const name=document.getElementById('nc-name').value.trim();
+  const vert=document.getElementById('nc-vert').value;
+  if(!name||!vert){showErr('camp-err','Name and vertical required.');return;}
+  hideErr('camp-err');
+  const states=document.getElementById('nc-states').value.trim().toUpperCase().replace(/\s/g,'');
+  const{error}=await sbClient.from('campaigns').insert({name,vertical:vert,states:states||null,sending_domain:document.getElementById('nc-domain').value.trim()||null,instantly_id:document.getElementById('nc-instid').value.trim()||null,status:document.getElementById('nc-status').value});
+  if(error){showErr('camp-err',error.message);return;}
+  toast('Campaign created','ok');['nc-name','nc-domain','nc-instid','nc-states'].forEach(id=>document.getElementById(id).value='');document.getElementById('nc-vert').value='';
+  loadCampaigns();
+}
+async function deleteCampaign(id){
+  if(!confirm('Delete this campaign? Contacts will be unassigned.'))return;
+  await sbClient.from('contacts').update({campaign_id:null}).eq('campaign_id',id);
+  await sbClient.from('campaigns').delete().eq('id',id);
+  toast('Campaign deleted','ok');loadCampaigns();
+}
+async function autoAssign(){
+  if(!sbClient||!allCampaigns.length){toast('Create campaigns first','err');return;}
+  const activeCampaigns=allCampaigns.filter(c=>c.status==='active');
+  if(!activeCampaigns.length){toast('No active campaigns','err');return;}
+  // Load all matched, unsuppressed contacts with their company's vertical + state
+  const{data:cts}=await sbClient.from('contacts').select('id,domain,companies(vertical,state)').eq('match_status','matched').not('suppressed','is',true);
+  if(!cts||!cts.length){toast('No matched contacts to assign','info');return;}
+  let assigned=0,unassigned=0;
+  const updates=cts.map(ct=>{
+    const vert=ct.companies?.vertical;
+    const state=(ct.companies?.state||'').trim().toUpperCase();
+    // Find best matching campaign: prefer campaigns with state filter over "all states"
+    const withStates=activeCampaigns.filter(c=>c.vertical===vert&&c.states);
+    const withoutStates=activeCampaigns.filter(c=>c.vertical===vert&&!c.states);
+    let match=withStates.find(c=>c.states.split(',').map(s=>s.trim().toUpperCase()).includes(state));
+    if(!match)match=withoutStates[0]; // fallback to any campaign for this vertical
+    if(match){assigned++;return sbClient.from('contacts').update({campaign_id:match.id}).eq('id',ct.id);}
+    else{unassigned++;return null;}
+  }).filter(Boolean);
+  for(let i=0;i<updates.length;i+=200)await Promise.all(updates.slice(i,i+200));
+  const msg=`✓ ${assigned.toLocaleString()} assigned, ${unassigned.toLocaleString()} unmatched to any campaign`;
+  toast(msg,'ok');loadDash();loadCampaigns();
+}
+
+/* ══════════════════════════════════════════
+   SUPPRESSION
+══════════════════════════════════════════ */
+async function importSuppression(){
+  if(!sbClient)return;
+  const raw=document.getElementById('supp-paste').value.trim();
+  if(!raw){toast('Paste emails or domains first','err');return;}
+  const reason=document.getElementById('supp-reason').value;
+  const lines=raw.split('\n').map(l=>l.trim().toLowerCase()).filter(Boolean);
+  const toIns=lines.map(val=>{
+    const type=val.includes('@')?'email':'domain';
+    const value=type==='email'?val:normalizeDomain(val);
+    return{value,type,reason};
+  }).filter(r=>r.value);
+  if(!toIns.length)return;
+  for(let i=0;i<toIns.length;i+=500){const{error}=await sbClient.from('suppression').upsert(toIns.slice(i,i+500),{onConflict:'value'});if(error){toast(error.message,'err');return;}}
+  document.getElementById('supp-st').textContent=`✓ ${toIns.length} entries imported`;document.getElementById('supp-paste').value='';
+  toast(`${toIns.length} suppression entries added`,'ok');loadSuppressionStats();
+}
+async function loadSuppressionStats(){
+  if(!sbClient)return;
+  const{count:total}=await sbClient.from('suppression').select('id',{count:'exact',head:true});
+  const{count:suppCt}=await sbClient.from('contacts').select('id',{count:'exact',head:true}).eq('suppressed',true);
+  document.getElementById('supp-total').textContent=total||0;
+  document.getElementById('supp-contacts').textContent=suppCt||0;
+}
+async function runSuppressionCheck(){
+  if(!sbClient)return;
+  const{data:suppList}=await sbClient.from('suppression').select('value,type');
+  const suppEmails=new Set(suppList.filter(s=>s.type==='email').map(s=>s.value));
+  const suppDomains=new Set(suppList.filter(s=>s.type==='domain').map(s=>s.value));
+  const{data:contacts}=await sbClient.from('contacts').select('id,email,domain').not('suppressed','is',true);
+  const toSupp=(contacts||[]).filter(c=>suppEmails.has((c.email||'').toLowerCase())||suppDomains.has(c.domain||''));
+  if(!toSupp.length){toast('No new contacts to suppress','info');return;}
+  for(let i=0;i<toSupp.length;i+=200)await sbClient.from('contacts').update({suppressed:true,suppressed_reason:'suppression_list'}).in('id',toSupp.slice(i,i+200).map(c=>c.id));
+  toast(`${toSupp.length} contacts marked suppressed`,'ok');loadSuppressionStats();loadDash();
+}
+
+/* ══════════════════════════════════════════
+   EXPORT
+══════════════════════════════════════════ */
+async function doExport(){
+  if(!sbClient)return;
+  if(!allCampaigns.length){toast('No campaigns defined','err');return;}
+  const confF=document.getElementById('exp-c').value;
+  const incCoSheet=document.getElementById('exp-cosheet').value==='1';
+  const msg=document.getElementById('exp-msg');msg.textContent='Building...';
+  const wb=XLSX.utils.book_new();
+  let totalContacts=0;
+
+  for(const camp of allCampaigns){
+    let q=sbClient.from('contacts').select('*,companies(name,vertical,state,website,confidence,reason,location_count,tags,revenue,employees,founded)').eq('campaign_id',camp.id).not('suppressed','is',true);
+    if(confF==='high')q=q.eq('companies.confidence','high');
+    else if(confF==='high_med')q=q.in('companies.confidence',['high','medium']);
+    const{data:cts}=await q;
+    if(!cts||!cts.length)continue;
+    totalContacts+=cts.length;
+    const rows=cts.map(c=>{const sc=c.companies?calcScore(c.companies):0;const tier=scoreTier(sc);return{Email:c.email||'',First_Name:c.first_name||'',Last_Name:c.last_name||'',Title:c.title||'',Company_Name:c.company_name||c.companies?.name||'',Company_Website:c.website||c.companies?.website||'',State:c.companies?.state||'',Vertical:c.companies?.vertical||'',Vertical_Label:V[c.companies?.vertical]?.label||'',Score:sc,Score_Tier:tier.tier,Locations:c.companies?.location_count||1,Tags:c.companies?.tags||'',Confidence:c.companies?.confidence||'',Reason:c.companies?.reason||'',Campaign:camp.name,Sending_Domain:camp.sending_domain||''}});
+    const ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:28},{wch:14},{wch:14},{wch:25},{wch:30},{wch:25},{wch:6},{wch:14},{wch:22},{wch:10},{wch:35},{wch:25},{wch:20}];
+    const sheetName=camp.name.slice(0,31).replace(/[\\/?*[\]]/g,'');
+    XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  }
+
+  if(incCoSheet){
+    const{data:cos}=await sbClient.from('companies').select('*').in('status',['done','needs_review']).order('vertical,name');
+    if(cos&&cos.length){const wsC=XLSX.utils.json_to_sheet(cos.map(c=>{const sc=calcScore(c);const tier=scoreTier(sc);return({Name:c.name||'',Website:c.website||'',State:c.state||'',City:c.city||'',Vertical:c.vertical||'',Vertical_Label:V[c.vertical]?.label||'',Confidence:c.confidence||'',Score:sc,Score_Tier:tier.tier,Tags:c.tags||'',Locations:c.location_count||1,Revenue:c.revenue||'',Employees:c.employees||'',Founded:c.founded||'',SIC:c.sic||'',NAICS:c.naics||'',LinkedIn:c.linkedin||'',Categories:c.categories||'',Reason:c.reason||'',Contact_First:c.contact_first_name||'',Contact_Last:c.contact_last_name||'',Contact_Email:c.contact_email||'',Source_File:c.source_file||''});}));XLSX.utils.book_append_sheet(wb,wsC,'Companies');}
+  }
+
+  if(wb.SheetNames.length===0){msg.textContent='No contacts assigned to campaigns. Run Auto-Assign first.';return;}
+  const fname=`pfg-export-${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb,fname);
+  msg.textContent=`✓ ${fname} — ${totalContacts.toLocaleString()} contacts across ${wb.SheetNames.length} campaigns`;
+  toast('Excel downloaded','ok');
+
+  // Preview
+  document.getElementById('exp-preview').innerHTML=`<div class="sg">
+    ${allCampaigns.map(c=>`<div class="sc"><div class="l">${esc(c.name.slice(0,20))}</div><div class="v b" style="font-size:16px">—</div></div>`).join('')}
+  </div>`;
+}
+
+async function exportUnassigned(){
+  if(!sbClient)return;
+  const{data}=await sbClient.from('contacts').select('*,companies(name,vertical,state)').eq('match_status','matched').is('campaign_id',null).not('suppressed','is',true);
+  if(!data||!data.length){toast('No unassigned matched contacts','info');return;}
+  const wb=XLSX.utils.book_new();
+  const rows=data.map(c=>({Email:c.email||'',First_Name:c.first_name||'',Last_Name:c.last_name||'',Title:c.title||'',Company:c.company_name||c.companies?.name||'',Website:c.website||'',State:c.companies?.state||'',Vertical:c.companies?.vertical||'',Vertical_Label:V[c.companies?.vertical]?.label||''}));
+  const ws=XLSX.utils.json_to_sheet(rows);XLSX.utils.book_append_sheet(wb,ws,'Unassigned');
+  XLSX.writeFile(wb,`pfg-unassigned-${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(`${data.length} unassigned contacts exported`,'ok');
+}
+
+/* ══════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════ */
+function normalizeDomain(url){if(!url)return'';let d=url.trim().toLowerCase();d=d.replace(/^https?:\/\//,'').replace(/^www\./,'');d=d.split(/[/?#:]/)[0];return d.trim();}
+function vbadge(k){const v=V[k]||V.other;return`<span class="vb" style="color:${v.color};border-color:${v.color}40;background:${v.bg}">${v.emoji} ${v.label}</span>`;}
+function matchBadge(s){const m={matched:['var(--green)','rgba(34,197,94,.1)'],unmatched:['var(--red)','rgba(239,68,68,.1)'],pending:['var(--muted)','var(--s3)']};const[col,bg]=m[s]||m.pending;return`<span class="sb" style="color:${col};background:${bg}">${s}</span>`;}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function delay(ms){return new Promise(r=>setTimeout(r,ms));}
+function showErr(id,msg){const e=document.getElementById(id);if(e){e.textContent=msg;e.style.display='block';}}
+function hideErr(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+function gateErr(id,msg){const e=document.getElementById(id);if(e){e.textContent=msg;e.style.display='block';}}
+function clearGateErr(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+function gateInfo(id,msg){const e=document.getElementById(id);if(e){e.textContent=msg;e.style.display='block';}}
+function clearGateInfo(id){const e=document.getElementById(id);if(e)e.style.display='none';}
+function toast(msg,type='ok'){const el=document.createElement('div');el.className=`toast ${type}`;el.textContent=msg;document.getElementById('toast-wrap').appendChild(el);setTimeout(()=>el.remove(),3500);}
+
+window.addEventListener('DOMContentLoaded',()=>{
+  if(document.getElementById('tab-export').classList.contains('active'))loadSuppressionStats();
+});
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelector('.nb[data-tab="export"]')?.addEventListener('click',loadSuppressionStats);
+});
+</script>
+</body>
+</html>
