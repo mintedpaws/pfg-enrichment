@@ -548,6 +548,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-o" onclick="instSyncSuppression()">⟳ Sync Suppression from Instantly</button>
         <button class="btn btn-g btn-sm" onclick="instCheckContacted(90)">Flag Contacted &lt;90 days</button>
+        <button class="btn btn-g btn-sm" onclick="instDebug()">Debug API</button>
         <span id="inst-sync-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
       </div>
     </div>
@@ -894,31 +895,28 @@ async function instFetch(path,params={}){
 async function instLoadCampaigns(){
   const st=document.getElementById('inst-camp-st');
   st.textContent='Loading...';
-  const data=await instFetch('/api/v2/campaigns',{limit:100,status:'all'});
+  const data=await instFetch('/api/v2/campaigns',{limit:100});
   if(!data){st.textContent='';return;}
   const camps=data.items||data||[];
   st.textContent=`${camps.length} campaigns`;
   const el=document.getElementById('inst-camp-list');
   if(!camps.length){el.innerHTML='<div class="empty">No campaigns found.</div>';return;}
-
-  // Load analytics for each campaign
   el.innerHTML='<div style="color:var(--muted);font-family:var(--mono);font-size:11px;padding:8px">Loading analytics...</div>';
   const withStats=await Promise.all(camps.map(async c=>{
-    const stats=await instFetch(`/api/v2/campaigns/${c.id}/analytics/overview`).catch(()=>null);
-    return{...c,stats};
+    const stats=await instFetch(`/api/v2/campaigns/${c.id}/analytics`).catch(()=>null);
+    return{...c,stats:stats||{}};
   }));
-
   el.innerHTML=withStats.map(c=>{
     const s=c.stats||{};
-    const sent=s.total_sent||s.emails_sent||0;
-    const opens=s.open_count||0;
-    const replies=s.reply_count||0;
-    const bounces=s.bounce_count||0;
+    const sent=s.total_sent||s.emails_sent||s.sent||0;
+    const opens=s.open_count||s.opens||0;
+    const replies=s.reply_count||s.replies||0;
+    const bounces=s.bounce_count||s.bounces||0;
     const openPct=sent>0?Math.round(opens/sent*100):0;
     const replyPct=sent>0?Math.round(replies/sent*100):0;
     const statusColor=c.status==='active'?'var(--green)':c.status==='paused'?'var(--yellow)':'var(--muted)';
     return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
           <div style="font-weight:600;font-size:13px;margin-bottom:3px">${esc(c.name||'Unnamed')}</div>
           <div style="font-family:var(--mono);font-size:10px;color:${statusColor}">${c.status||'unknown'}</div>
@@ -937,7 +935,7 @@ async function instLoadCampaigns(){
 async function instLoadInboxes(){
   const st=document.getElementById('inst-inbox-st');
   st.textContent='Loading...';
-  const data=await instFetch('/api/v2/accounts',{limit:200});
+  const data=await instFetch('/api/v2/accounts',{limit:100});
   if(!data){st.textContent='';return;}
   const inboxes=data.items||data||[];
   st.textContent=`${inboxes.length} inboxes`;
@@ -945,20 +943,20 @@ async function instLoadInboxes(){
   if(!inboxes.length){el.innerHTML='<div class="empty">No inboxes found.</div>';return;}
   el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
     ${inboxes.map(inbox=>{
-      const warmup=inbox.warmup_status||inbox.warmup?.status||'unknown';
-      const health=inbox.health_score||inbox.reputation_score||'—';
+      const warmup=inbox.warmup_status||inbox.warmup?.status||'—';
+      const health=inbox.health_score||inbox.reputation||'—';
       const dailyUsed=inbox.daily_limit_used||inbox.sent_today||0;
-      const dailyLimit=inbox.daily_limit||50;
+      const dailyLimit=inbox.daily_limit||inbox.sending_limit||50;
       const pct=dailyLimit>0?Math.round(dailyUsed/dailyLimit*100):0;
-      const warmupColor=warmup==='active'||warmup==='enabled'?'var(--green)':warmup==='paused'?'var(--yellow)':'var(--muted)';
+      const warmupColor=warmup==='active'||warmup==='enabled'||warmup==='warming'?'var(--green)':warmup==='paused'?'var(--yellow)':'var(--muted)';
       return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:12px">
-        <div style="font-family:var(--mono);font-size:11px;font-weight:700;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(inbox.email||inbox.address||'—')}</div>
+        <div style="font-family:var(--mono);font-size:11px;font-weight:700;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(inbox.email||inbox.address||'')}">${esc(inbox.email||inbox.address||'—')}</div>
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px">
-          <span>Warmup: <span style="color:${warmupColor}">${warmup}</span></span>
+          <span style="color:${warmupColor}">${warmup}</span>
           ${health!=='—'?`<span>Health: <strong style="color:var(--text)">${health}</strong></span>`:''}
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">${dailyUsed}/${dailyLimit} today</div>
-        <div style="height:3px;background:var(--s4);border-radius:2px"><div style="height:100%;width:${pct}%;background:${pct>80?'var(--red)':pct>50?'var(--yellow)':'var(--green)'};border-radius:2px"></div></div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">${dailyUsed}/${dailyLimit} sent today</div>
+        <div style="height:3px;background:var(--s4);border-radius:2px"><div style="height:100%;width:${Math.min(pct,100)}%;background:${pct>80?'var(--red)':pct>50?'var(--yellow)':'var(--green)'};border-radius:2px"></div></div>
       </div>`;
     }).join('')}
   </div>`;
@@ -997,6 +995,18 @@ async function instSyncSuppression(){
   st.textContent=`✓ ${toAdd.length} new suppression entries added (${unique.length} total from Instantly)`;
   toast(`Suppression synced — ${toAdd.length} new entries`,'ok');
   loadSuppressionStats();
+}
+
+async function instDebug(){
+  const st=document.getElementById('inst-sync-st');
+  st.textContent='Testing API connection...';
+  const key=sessionStorage.getItem('inst_key');
+  if(!key){st.textContent='No Instantly key found — paste it in the header first';return;}
+  try{
+    const resp=await fetch(`${INST_PROXY}/api/v2/campaigns?limit=1`,{headers:{'X-Instantly-Key':key}});
+    const text=await resp.text();
+    st.textContent=`Status ${resp.status}: ${text.slice(0,200)}`;
+  }catch(e){st.textContent='Error: '+e.message;}
 }
 
 async function instCheckContacted(days=90){
