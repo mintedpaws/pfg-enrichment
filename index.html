@@ -877,13 +877,15 @@ function switchTab(name){
 /* ══════════════════════════════════════════
    INSTANTLY API
 ══════════════════════════════════════════ */
+const INST_PROXY='https://pfg-instantly-proxy.ryarmentano123.workers.dev';
+
 async function instFetch(path,params={}){
   const key=sessionStorage.getItem('inst_key');
   if(!key){toast('Add Instantly API key in the header first','err');return null;}
-  const url=new URL('https://api.instantly.ai'+path);
+  const url=new URL(INST_PROXY+path);
   Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
   try{
-    const resp=await fetch(url.toString(),{headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'}});
+    const resp=await fetch(url.toString(),{headers:{'X-Instantly-Key':key,'Content-Type':'application/json'}});
     if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error?.message||`HTTP ${resp.status}`);}
     return resp.json();
   }catch(e){toast('Instantly API: '+e.message,'err');return null;}
