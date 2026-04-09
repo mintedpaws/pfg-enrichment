@@ -914,12 +914,15 @@ async function instLoadCampaigns(){
     const bounces=s.bounce_count||s.bounces||0;
     const openPct=sent>0?Math.round(opens/sent*100):0;
     const replyPct=sent>0?Math.round(replies/sent*100):0;
-    const statusColor=c.status==='active'?'var(--green)':c.status==='paused'?'var(--yellow)':'var(--muted)';
+    // Instantly status: 1=active, 2=paused, 3=completed, 0=draft
+    const statusMap={1:'active',2:'paused',3:'completed',0:'draft'};
+    const statusLabel=statusMap[c.status]||String(c.status||'unknown');
+    const statusColor=c.status===1?'var(--green)':c.status===2?'var(--yellow)':'var(--muted)';
     return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
           <div style="font-weight:600;font-size:13px;margin-bottom:3px">${esc(c.name||'Unnamed')}</div>
-          <div style="font-family:var(--mono);font-size:10px;color:${statusColor}">${c.status||'unknown'}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:${statusColor}">${statusLabel}</div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,70px);gap:8px;text-align:center">
           <div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--text)">${sent.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">SENT</div></div>
@@ -999,13 +1002,22 @@ async function instSyncSuppression(){
 
 async function instDebug(){
   const st=document.getElementById('inst-sync-st');
-  st.textContent='Testing API connection...';
+  st.textContent='Testing API...';
   const key=sessionStorage.getItem('inst_key');
-  if(!key){st.textContent='No Instantly key found — paste it in the header first';return;}
+  if(!key){st.textContent='No key found';return;}
   try{
-    const resp=await fetch(`${INST_PROXY}/api/v2/campaigns?limit=1`,{headers:{'X-Instantly-Key':key}});
-    const text=await resp.text();
-    st.textContent=`Status ${resp.status}: ${text.slice(0,200)}`;
+    // Test campaigns list
+    const r1=await fetch(`${INST_PROXY}/api/v2/campaigns?limit=1`,{headers:{'X-Instantly-Key':key}});
+    const t1=await r1.text();
+    const camp=JSON.parse(t1);
+    const firstId=camp.items?.[0]?.id;
+    let analyticsInfo='No campaign ID found';
+    if(firstId){
+      // Test analytics endpoint
+      const r2=await fetch(`${INST_PROXY}/api/v2/campaigns/${firstId}/analytics`,{headers:{'X-Instantly-Key':key}});
+      analyticsInfo=`Analytics (${r2.status}): ${(await r2.text()).slice(0,300)}`;
+    }
+    st.textContent=`Campaigns OK. ${analyticsInfo}`;
   }catch(e){st.textContent='Error: '+e.message;}
 }
 
