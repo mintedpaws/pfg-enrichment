@@ -1114,8 +1114,9 @@ async function loadInstantlyStatusStats(){
   document.getElementById('ist-unsub').textContent=counts.unsubscribed||0;
   document.getElementById('ist-none').textContent=counts.none||0;
 }
+
+async function instSyncSuppression(){
   const st=document.getElementById('inst-sync-st');
-  st.textContent='Fetching from Instantly...';
   // Pull all contacts with terminal statuses
   let allLeads=[],startingAfter=null,page=0;
   const statuses=['bounced','unsubscribed','opted_out'];
@@ -1161,6 +1162,8 @@ async function instCheckContact(email,targetEl){
   const html=items.map(c=>`<span style="font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:3px;margin-right:4px;background:var(--s3);color:var(--${c.campaign_status===1?'yellow':'muted'})">${esc(c.campaign_name||c.campaign_id)} · ${statusMap[c.campaign_status]||'?'}</span>`).join('');
   if(targetEl)targetEl.innerHTML=`<div style="margin-top:4px">${html}</div>`;
 }
+
+async function instDebug(){
   const st=document.getElementById('inst-sync-st');
   st.textContent='Testing API...';
   const key=sessionStorage.getItem('inst_key');
