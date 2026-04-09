@@ -901,20 +901,21 @@ async function instLoadCampaigns(){
   st.textContent=`${camps.length} campaigns`;
   const el=document.getElementById('inst-camp-list');
   if(!camps.length){el.innerHTML='<div class="empty">No campaigns found.</div>';return;}
-  el.innerHTML='<div style="color:var(--muted);font-family:var(--mono);font-size:11px;padding:8px">Loading analytics...</div>';
-  const withStats=await Promise.all(camps.map(async c=>{
-    const stats=await instFetch(`/api/v2/campaigns/${c.id}/analytics`).catch(()=>null);
-    return{...c,stats:stats||{}};
-  }));
-  el.innerHTML=withStats.map(c=>{
-    const s=c.stats||{};
-    const sent=s.total_sent||s.emails_sent||s.sent||0;
-    const opens=s.open_count||s.opens||0;
-    const replies=s.reply_count||s.replies||0;
-    const bounces=s.bounce_count||s.bounces||0;
+  // Load all campaigns' analytics in one call
+  const analyticsData=await instFetch('/api/v2/campaigns/analytics',{exclude_total_leads_count:true});
+  const analyticsMap={};
+  if(analyticsData){
+    const items=analyticsData.items||analyticsData||[];
+    items.forEach(a=>{if(a.campaign_id||a.id)analyticsMap[a.campaign_id||a.id]=a;});
+  }
+  el.innerHTML=camps.map(c=>{
+    const s=analyticsMap[c.id]||{};
+    const sent=s.total_sent||s.sent||0;
+    const opens=s.total_unique_opened||s.unique_opened||s.opened||0;
+    const replies=s.total_unique_replied||s.unique_replies||s.replies||0;
+    const bounces=s.total_bounced||s.bounced||0;
     const openPct=sent>0?Math.round(opens/sent*100):0;
     const replyPct=sent>0?Math.round(replies/sent*100):0;
-    // Instantly status: 1=active, 2=paused, 3=completed, 0=draft
     const statusMap={1:'active',2:'paused',3:'completed',0:'draft'};
     const statusLabel=statusMap[c.status]||String(c.status||'unknown');
     const statusColor=c.status===1?'var(--green)':c.status===2?'var(--yellow)':'var(--muted)';
@@ -1006,18 +1007,15 @@ async function instDebug(){
   const key=sessionStorage.getItem('inst_key');
   if(!key){st.textContent='No key found';return;}
   try{
-    // Test campaigns list
     const r1=await fetch(`${INST_PROXY}/api/v2/campaigns?limit=1`,{headers:{'X-Instantly-Key':key}});
-    const t1=await r1.text();
-    const camp=JSON.parse(t1);
+    const camp=await r1.json();
     const firstId=camp.items?.[0]?.id;
-    let analyticsInfo='No campaign ID found';
+    let analyticsInfo='No campaign found';
     if(firstId){
-      // Test analytics endpoint
-      const r2=await fetch(`${INST_PROXY}/api/v2/campaigns/${firstId}/analytics`,{headers:{'X-Instantly-Key':key}});
-      analyticsInfo=`Analytics (${r2.status}): ${(await r2.text()).slice(0,300)}`;
+      const r2=await fetch(`${INST_PROXY}/api/v2/campaigns/analytics?id=${firstId}&exclude_total_leads_count=true`,{headers:{'X-Instantly-Key':key}});
+      analyticsInfo=`Analytics (${r2.status}): ${(await r2.text()).slice(0,400)}`;
     }
-    st.textContent=`Campaigns OK. ${analyticsInfo}`;
+    st.textContent=analyticsInfo;
   }catch(e){st.textContent='Error: '+e.message;}
 }
 
