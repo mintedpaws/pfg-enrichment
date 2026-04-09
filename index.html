@@ -905,17 +905,18 @@ async function instLoadCampaigns(){
   const analyticsData=await instFetch('/api/v2/campaigns/analytics',{exclude_total_leads_count:true});
   const analyticsMap={};
   if(analyticsData){
-    const items=analyticsData.items||analyticsData||[];
-    items.forEach(a=>{if(a.campaign_id||a.id)analyticsMap[a.campaign_id||a.id]=a;});
+    const items=Array.isArray(analyticsData)?analyticsData:(analyticsData.items||[]);
+    items.forEach(a=>{if(a.campaign_id)analyticsMap[a.campaign_id]=a;});
   }
   el.innerHTML=camps.map(c=>{
     const s=analyticsMap[c.id]||{};
-    const sent=s.total_sent||s.sent||0;
-    const opens=s.total_unique_opened||s.unique_opened||s.opened||0;
-    const replies=s.total_unique_replied||s.unique_replies||s.replies||0;
-    const bounces=s.total_bounced||s.bounced||0;
-    const openPct=sent>0?Math.round(opens/sent*100):0;
-    const replyPct=sent>0?Math.round(replies/sent*100):0;
+    const sent=s.emails_sent_count||0;
+    const opens=s.open_count||0;
+    const replies=s.reply_count||0;
+    const bounces=s.bounced_count||0;
+    const contacted=s.contacted_count||0;
+    const openPct=contacted>0?Math.round(opens/contacted*100):0;
+    const replyPct=contacted>0?Math.round(replies/contacted*100):0;
     const statusMap={1:'active',2:'paused',3:'completed',0:'draft'};
     const statusLabel=statusMap[c.status]||String(c.status||'unknown');
     const statusColor=c.status===1?'var(--green)':c.status===2?'var(--yellow)':'var(--muted)';
@@ -925,11 +926,12 @@ async function instLoadCampaigns(){
           <div style="font-weight:600;font-size:13px;margin-bottom:3px">${esc(c.name||'Unnamed')}</div>
           <div style="font-family:var(--mono);font-size:10px;color:${statusColor}">${statusLabel}</div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,70px);gap:8px;text-align:center">
-          <div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--text)">${sent.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">SENT</div></div>
-          <div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--blue)">${openPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">OPENS</div></div>
-          <div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--green)">${replyPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">REPLIES</div></div>
-          <div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--red)">${bounces}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">BOUNCES</div></div>
+        <div style="display:grid;grid-template-columns:repeat(5,62px);gap:8px;text-align:center">
+          <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text)">${sent.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">SENT</div></div>
+          <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text)">${contacted.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">CONTACTED</div></div>
+          <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--blue)">${openPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">OPENS</div></div>
+          <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--green)">${replyPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">REPLIES</div></div>
+          <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--red)">${bounces}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">BOUNCES</div></div>
         </div>
       </div>
     </div>`;
