@@ -1200,7 +1200,20 @@ async function instBulkSyncContacts(){
   while(page<500){
     const params={limit:100};
     if(startingAfter)params.starting_after=startingAfter;
-    const data=await instFetch('/api/v2/leads',params);
+    // Instantly v2 leads list is a POST endpoint
+    let data=null;
+    try{
+      const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{
+        method:'POST',
+        headers:{'X-Instantly-Key':sessionStorage.getItem('inst_key'),'Content-Type':'application/json'},
+        body:JSON.stringify(params)
+      });
+      if(resp.ok)data=await resp.json();
+      else{
+        // Fallback to GET
+        data=await instFetch('/api/v2/leads',params);
+      }
+    }catch(e){data=await instFetch('/api/v2/leads',params);}
     if(!data||!data.items?.length)break;
 
     data.items.forEach(lead=>{
@@ -1457,19 +1470,13 @@ async function instDebug(){
   const key=sessionStorage.getItem('inst_key');
   if(!key){st.textContent='No key found';return;}
   try{
-    const r1=await fetch(`${INST_PROXY}/api/v2/campaigns?limit=1`,{headers:{'X-Instantly-Key':key}});
-    const camp=await r1.json();
-    const firstId=camp.items?.[0]?.id;
-    // Test leads endpoint
-    const r2=await fetch(`${INST_PROXY}/api/v2/leads?limit=1`,{headers:{'X-Instantly-Key':key}});
-    const leadsText=await r2.text();
-    // Test campaign-specific leads
-    let campLeads='no campaign id';
-    if(firstId){
-      const r3=await fetch(`${INST_PROXY}/api/v2/leads?limit=1&campaign_id=${firstId}`,{headers:{'X-Instantly-Key':key}});
-      campLeads=`(${r3.status}): ${(await r3.text()).slice(0,150)}`;
-    }
-    st.textContent=`Campaigns OK. Leads (${r2.status}): ${leadsText.slice(0,200)} | Campaign leads: ${campLeads}`;
+    // Test leads GET
+    const r1=await fetch(`${INST_PROXY}/api/v2/leads?limit=1`,{headers:{'X-Instantly-Key':key}});
+    const t1=`GET leads (${r1.status}): ${(await r1.text()).slice(0,100)}`;
+    // Test leads POST /list
+    const r2=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},body:JSON.stringify({limit:1})});
+    const t2=`POST leads/list (${r2.status}): ${(await r2.text()).slice(0,150)}`;
+    st.textContent=t1+' | '+t2;
   }catch(e){st.textContent='Error: '+e.message;}
 }
 
