@@ -1197,6 +1197,15 @@ async function instBulkSyncContacts(){
   let startingAfter=null,page=0,total=0;
   const statusPriority={replied:4,bounced:3,unsubscribed:3,active:1};
 
+  // Build campaign ID → name map from already-loaded campaign data
+  const campIdToName={};
+  if(instCampData.length){instCampData.forEach(c=>{campIdToName[c.id]=c.name||c.id;});}
+  // Also fetch campaigns if not loaded yet
+  if(!instCampData.length){
+    const cd=await instFetch('/api/v2/campaigns',{limit:100});
+    (cd?.items||[]).forEach(c=>{campIdToName[c.id]=c.name||c.id;});
+  }
+
   while(page<500){
     const body={limit:100};
     if(startingAfter)body.starting_after=startingAfter;
@@ -1214,10 +1223,10 @@ async function instBulkSyncContacts(){
     data.items.forEach(lead=>{
       const email=(lead.email||'').toLowerCase().trim();
       if(!email)return;
-      const domain=email.split('@')[1]||'';
-      const status=lead.status===2?'unsubscribed':lead.status===3?'bounced':lead.replied?'replied':'active';
-      const campaign=lead.campaign_name||lead.campaign||'';
-      const ts=lead.timestamp_updated||lead.timestamp_created||null;
+      const domain=lead.company_domain||email.split('@')[1]||'';
+      const status=lead.status===2?'unsubscribed':lead.status===3?'bounced':(lead.email_reply_count>0)?'replied':'active';
+      const campaign=campIdToName[lead.campaign]||lead.campaign||'';
+      const ts=lead.timestamp_last_contact||lead.timestamp_updated||null;
       const firstName=lead.first_name||'';
       const lastName=lead.last_name||'';
 
@@ -1226,7 +1235,7 @@ async function instBulkSyncContacts(){
       if(!ex||(statusPriority[status]||0)>(statusPriority[ex.status]||0)){
         emailMap[email]={email,status,campaign,last_contacted:ts,
           first_name:firstName,last_name:lastName,
-          company_name:lead.company||lead.company_name||'',
+          company_name:lead.company_name||'',
           domain,source:'instantly'};
       }
 
