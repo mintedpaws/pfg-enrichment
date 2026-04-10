@@ -591,6 +591,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div class="card-title">Inbox Health</div>
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
         <button class="btn btn-g btn-sm" onclick="instLoadInboxes()">Load Inboxes</button>
+        <button class="btn btn-g btn-sm" id="btn-check-assign" onclick="instCheckAssignments()" style="display:none">📋 Check Assignments</button>
         <span id="inst-inbox-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
       </div>
       <div id="inst-inbox-grid"><div class="empty">Click Load to pull inbox health from Instantly.</div></div>
@@ -923,6 +924,8 @@ async function instFetch(path,params={}){
 
 let instCampData=[];
 let instAnalyticsMap={};
+let instAllInboxes=[];
+let instAssignmentMap={};
 
 async function instLoadCampaigns(){
   const st=document.getElementById('inst-camp-st');
@@ -1003,16 +1006,9 @@ async function instLoadInboxes(){
     startingAfter=data.next_starting_after;
   }
   if(!allInboxes.length){st.textContent='No inboxes found.';document.getElementById('inst-inbox-grid').innerHTML='<div class="empty">No inboxes found.</div>';return;}
-  st.textContent=`${allInboxes.length} inboxes — checking assignments...`;
-  // Fire all inbox assignment checks in parallel
-  const assignmentMap={};
-  await Promise.all(emails.map(async email=>{
-    try{
-      const data=await instFetch('/api/v2/account-campaign-mappings/'+encodeURIComponent(email),{limit:50});
-      const items=data?.items||[];
-      if(items.length>0) assignmentMap[email]=items.map(m=>m.campaign_name||m.campaign_id||'Unknown');
-    }catch(e){}
-  }));
+  instAllInboxes=allInboxes;
+  st.textContent=`${allInboxes.length} inboxes — loading warmup...`;
+  const assignmentMap={}; // populated separately via "Check Assignments" button
   st.textContent=`${allInboxes.length} inboxes — loading warmup...`;
 
   // Get warmup data for all inboxes via POST
@@ -1030,7 +1026,8 @@ async function instLoadInboxes(){
   const today=new Date().toISOString().slice(0,10);
   const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
   const assignedCount=allInboxes.filter(i=>assignmentMap[i.email]?.length>0).length;
-  document.getElementById('inst-inbox-st').textContent=`${allInboxes.length} inboxes · ${assignedCount} assigned · ${allInboxes.length-assignedCount} free`;
+  document.getElementById('inst-inbox-st').textContent=`${allInboxes.length} inboxes`;
+  document.getElementById('btn-check-assign').style.display='';
   allInboxes.sort((a,b)=>{const af=!assignmentMap[a.email]?.length,bf=!assignmentMap[b.email]?.length;if(af&&!bf)return -1;if(!af&&bf)return 1;return(a.email||'').localeCompare(b.email||'');});
   const el=document.getElementById('inst-inbox-grid');
   el.innerHTML=`
@@ -1058,12 +1055,14 @@ async function instLoadInboxes(){
         ?'<div style="font-size:10px;color:var(--green);font-weight:600">\u2713 Available</div>'
         :'<div style="font-size:10px;color:var(--yellow)">'+campaigns.length+' campaign'+(campaigns.length>1?'s':'')+'</div><div style="font-size:9px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(campaigns[0])+(campaigns.length>1?' +'+(campaigns.length-1):'')+'</div>';
       var warmupHtml=w?'<div style="font-size:9px;color:var(--muted);margin-top:3px">'+warmupInboxC+'\ud83d\udce4 '+warmupSpam+'\ud83d\udeab / '+warmupSent+'</div>':'';
-      return '<div class="inbox-card" data-free="'+isFree+'" style="background:var(--s2);border:1px solid '+border+';border-radius:7px;padding:10px">'
+      return '<div class="inbox-card" data-free="'+isFree+'" data-email="'+esc(email)+'" style="background:var(--s2);border:1px solid '+border+';border-radius:7px;padding:10px">'
         +'<div style="font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)" title="'+esc(email)+'">'+esc(email)+'</div>'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
         +'<span style="font-size:10px;color:'+statusColor+'">\u2b24 '+statusLabel+'</span>'
         +'<span style="font-family:var(--mono);font-size:9px;color:var(--muted)">'+dailyLimit+'/day</span>'
-        +'</div>'+campHtml+warmupHtml+'</div>';
+        +'</div>'
+        +'<div class="assign-info">'+campHtml+'</div>'
+        +warmupHtml+'</div>';
     }).join('')}
     </div>`;
 }
@@ -1075,6 +1074,54 @@ function filterInboxes(){
     var isFree=card.dataset.free==='true';
     card.style.display=(v==='all'||(v==='free'&&isFree)||(v==='assigned'&&!isFree))?'':'none';
   });
+}
+
+async function instCheckAssignments(){
+  if(!instAllInboxes.length){toast('Load inboxes first','err');return;}
+  const btn=document.getElementById('btn-check-assign');
+  const st=document.getElementById('inst-inbox-st');
+  btn.disabled=true;btn.textContent='Checking...';
+  instAssignmentMap={};
+  const emails=instAllInboxes.map(i=>i.email).filter(Boolean);
+  // Process in small batches of 5 with delay to avoid rate limits
+  for(let i=0;i<emails.length;i+=5){
+    const batch=emails.slice(i,i+5);
+    await Promise.all(batch.map(async email=>{
+      try{
+        const data=await instFetch('/api/v2/account-campaign-mappings/'+encodeURIComponent(email),{limit:50});
+        const items=data?.items||[];
+        if(items.length>0)instAssignmentMap[email]=items.map(m=>m.campaign_name||'Unknown');
+      }catch(e){}
+    }));
+    st.textContent=`Checking assignments ${Math.min(i+5,emails.length)}/${emails.length}...`;
+    await new Promise(r=>setTimeout(r,300)); // small delay between batches
+  }
+  // Update all inbox cards with assignment data
+  instAllInboxes.forEach(inbox=>{
+    const email=inbox.email||'';
+    const card=document.querySelector(`.inbox-card[data-email="${CSS.escape(email)}"]`);
+    if(!card)return;
+    const camps=instAssignmentMap[email]||[];
+    const isFree=camps.length===0;
+    card.dataset.free=String(isFree);
+    card.style.border=`1px solid ${isFree?'rgba(16,185,129,.5)':'var(--bd)'}`;
+    const assignDiv=card.querySelector('.assign-info');
+    if(assignDiv)assignDiv.innerHTML=isFree
+      ?'<div style="font-size:10px;color:var(--green);font-weight:600">✓ Available</div>'
+      :`<div style="font-size:10px;color:var(--yellow)">${camps.length} campaign${camps.length>1?'s':''}</div><div style="font-size:9px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(camps[0])}${camps.length>1?` +${camps.length-1}`:''}</div>`;
+  });
+  const assignedCount=Object.keys(instAssignmentMap).length;
+  const freeCount=emails.length-assignedCount;
+  // Update filter labels
+  const allLabel=document.querySelector('input[name="inbox-filter"][value="all"]')?.parentElement;
+  const freeLabel=document.querySelector('input[name="inbox-filter"][value="free"]')?.parentElement;
+  const assignedLabel=document.querySelector('input[name="inbox-filter"][value="assigned"]')?.parentElement;
+  if(allLabel)allLabel.querySelector('input').nextSibling.textContent=` All (${emails.length})`;
+  if(freeLabel)freeLabel.innerHTML=`<input type="radio" name="inbox-filter" value="free" onchange="filterInboxes()" style="width:auto"/> ✓ Free (${freeCount})`;
+  if(assignedLabel)assignedLabel.innerHTML=`<input type="radio" name="inbox-filter" value="assigned" onchange="filterInboxes()" style="width:auto"/> 📢 Assigned (${assignedCount})`;
+  st.textContent=`${emails.length} inboxes · ${assignedCount} assigned · ${freeCount} free`;
+  btn.disabled=false;btn.textContent='📋 Refresh Assignments';
+  toast('Assignments loaded','ok');
 }
 
 async function instBulkSyncContacts(){
