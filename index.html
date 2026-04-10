@@ -1158,28 +1158,26 @@ function sortInboxCards(){
 
   // For domain sort, inject domain group headers
   if(sort==='domain'){
-    // Temporarily remove all cards, re-add with headers
     cards.forEach(c=>c.remove());
-    // Change grid to block layout for headers
     grid.style.display='block';
     let lastDom='';
+    let currentGroup=null;
     cards.forEach(card=>{
       const email=card.dataset.email||'';
       const dom=email.split('@')[1]||email;
       if(dom!==lastDom){
         const hdr=document.createElement('div');
         hdr.className='domain-header';
-        hdr.style.cssText='font-family:var(--mono);font-size:10px;font-weight:700;color:var(--purple);letter-spacing:.08em;text-transform:uppercase;padding:12px 4px 6px;border-bottom:1px solid var(--bd);margin-bottom:8px;margin-top:'+(lastDom?'16px':'0');
+        hdr.style.cssText='font-family:var(--mono);font-size:11px;font-weight:700;color:var(--purple);letter-spacing:.08em;text-transform:uppercase;padding:16px 4px 8px;border-bottom:1px solid var(--bd);margin-bottom:10px'+(lastDom?';margin-top:24px':'');
         hdr.textContent='@'+dom;
         grid.appendChild(hdr);
+        currentGroup=document.createElement('div');
+        currentGroup.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;margin-bottom:4px';
+        grid.appendChild(currentGroup);
         lastDom=dom;
       }
-      card.style.display='inline-block';
-      card.style.width='calc(25% - 6px)';
-      card.style.marginRight='8px';
-      card.style.marginBottom='8px';
-      card.style.verticalAlign='top';
-      grid.appendChild(card);
+      card.style.display='';card.style.width='';card.style.marginRight='';card.style.marginBottom='';card.style.verticalAlign='';
+      currentGroup.appendChild(card);
     });
   } else {
     // Reset to grid layout
