@@ -343,6 +343,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <select id="br-vert" onchange="filterBrowse()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option><option value="other">Other</option></select>
       <select id="br-status" onchange="filterBrowse()"><option value="">All Status</option><option value="done">Done</option><option value="needs_review">Needs Review</option><option value="pending">Pending</option><option value="error">Error</option></select>
       <select id="br-state" onchange="filterBrowse()"><option value="">All States</option></select>
+      <select id="br-inst" onchange="filterBrowse()"><option value="">All Instantly</option><option value="none">Never Contacted</option><option value="active">Active in Campaign</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option></select>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap"><input type="checkbox" id="br-noweb" onchange="filterBrowse()" style="width:auto"/> No website</label>
     </div>
     <div id="br-count" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px"></div>
@@ -551,8 +552,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div class="card-title">Contact Status Sync</div>
       <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Pulls every lead from every Instantly campaign and stamps your contacts table with their current status — active, replied, bounced, unsubscribed. Run this before reviewing or exporting so you always know who's already been contacted.</p>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-        <button class="btn btn-o" onclick="instBulkSyncContacts()">⟳ Sync All Contact Statuses</button>
-        <button class="btn btn-g btn-sm" onclick="instSyncCompanies()">⟳ Sync Companies by Domain</button>
+        <button class="btn btn-o" onclick="instBulkSyncContacts()">⟳ Sync Contacts + Companies</button>
         <button class="btn btn-g btn-sm" onclick="instSyncSuppression()">⟳ Sync Suppression Only</button>
         <button class="btn btn-g btn-sm" onclick="instDebug()">Debug API</button>
       </div>
@@ -570,6 +570,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
         <div class="sc"><div class="l">Bounced</div><div class="v r" id="ist-bounced">—</div></div>
         <div class="sc"><div class="l">Unsubscribed</div><div class="v r" id="ist-unsub">—</div></div>
         <div class="sc"><div class="l">Not Enrolled</div><div class="v" id="ist-none">—</div></div>
+        <div class="sc"><div class="l">Companies Touched</div><div class="v y" id="ist-co-touched">—</div></div>
       </div>
     </div>
     <div class="card">
@@ -1194,101 +1195,142 @@ async function instBulkSyncContacts(){
   prog.style.display='block';
   st.textContent='Pulling all leads from Instantly...';
 
-  // Paginate through ALL leads in Instantly
-  const instMap={}; // email → {status, campaign_name, last_contacted}
+  // Pull ALL leads — build both email map and domain map simultaneously
+  const emailMap={};  // email → {status, campaign, last_contacted}
+  const domainMap={}; // domain → {status, campaign, last_contacted, contacted_emails[], count}
   let startingAfter=null,page=0,total=0;
-  const statusLabels={1:'active',2:'unsubscribed',3:'bounced','-1':'paused'};
+  const statusPriority={replied:4,bounced:3,unsubscribed:3,active:1};
 
-  while(page<100){ // safety cap at 100 pages (10,000 leads)
+  while(page<200){
     const params={limit:100};
     if(startingAfter)params.starting_after=startingAfter;
     const data=await instFetch('/api/v2/leads',params);
     if(!data||!data.items?.length)break;
+
     data.items.forEach(lead=>{
       const email=(lead.email||'').toLowerCase().trim();
       if(!email)return;
-      const existing=instMap[email];
-      // Priority: replied > bounced > unsubscribed > active
-      const statusPriority={replied:4,bounced:3,unsubscribed:3,active:1};
-      const newStatus=lead.status===2?'unsubscribed':lead.status===3?'bounced':lead.replied?'replied':'active';
-      if(!existing||((statusPriority[newStatus]||0)>(statusPriority[existing.status]||0))){
-        instMap[email]={
-          status:newStatus,
-          campaign_name:lead.campaign_name||lead.campaign||'',
-          last_contacted:lead.timestamp_updated||lead.last_contacted||null
-        };
+      const domain=email.split('@')[1]||'';
+      const status=lead.status===2?'unsubscribed':lead.status===3?'bounced':lead.replied?'replied':'active';
+      const campaign=lead.campaign_name||lead.campaign||'';
+      const lastContacted=lead.timestamp_updated||lead.timestamp_created||null;
+
+      // Email-level map
+      const existingEmail=emailMap[email];
+      if(!existingEmail||((statusPriority[status]||0)>(statusPriority[existingEmail.status]||0))){
+        emailMap[email]={status,campaign,last_contacted:lastContacted};
+      }
+
+      // Domain-level map
+      if(domain){
+        if(!domainMap[domain]){
+          domainMap[domain]={status,campaign,last_contacted:lastContacted,emails:[email],count:1};
+        } else {
+          domainMap[domain].count++;
+          if(!domainMap[domain].emails.includes(email))domainMap[domain].emails.push(email);
+          if((statusPriority[status]||0)>(statusPriority[domainMap[domain].status]||0)){
+            domainMap[domain].status=status;
+            domainMap[domain].campaign=campaign;
+          }
+          if(lastContacted&&(!domainMap[domain].last_contacted||lastContacted>domainMap[domain].last_contacted)){
+            domainMap[domain].last_contacted=lastContacted;
+          }
+        }
       }
     });
+
     total+=data.items.length;
     st.textContent=`Pulled ${total.toLocaleString()} leads...`;
-    document.getElementById('inst-pg-lbl').textContent=`${total.toLocaleString()} leads from Instantly`;
+    document.getElementById('inst-pg-lbl').textContent=`${total.toLocaleString()} leads`;
     if(!data.next_starting_after||data.items.length<100)break;
     startingAfter=data.next_starting_after;
     page++;
   }
 
-  st.textContent=`Matched ${Object.keys(instMap).length} unique emails — updating contacts...`;
+  const uniqueEmails=Object.keys(emailMap).length;
+  const uniqueDomains=Object.keys(domainMap).length;
+  st.textContent=`${total.toLocaleString()} leads · ${uniqueEmails} unique emails · ${uniqueDomains} domains — updating...`;
 
-  // Load all contacts from our DB
-  const{data:dbContacts}=await sbClient.from('contacts').select('id,email');
-  if(!dbContacts?.length){st.textContent='No contacts in database to match against.';prog.style.display='none';return;}
-
-  // Match and update
-  let matched=0,updated=0;
-  const updates=[];
-  dbContacts.forEach(ct=>{
+  // ── UPDATE CONTACTS TABLE ──
+  const{data:dbContacts}=await sbClient.from('contacts').select('id,email,domain');
+  let contactsMatched=0;
+  const contactUpdates=[];
+  (dbContacts||[]).forEach(ct=>{
     const email=(ct.email||'').toLowerCase();
-    const inst=instMap[email];
+    const inst=emailMap[email];
     if(inst){
-      matched++;
-      updates.push({id:ct.id,instantly_status:inst.status,instantly_campaign:inst.campaign_name,instantly_last_contacted:inst.last_contacted||null});
-      // Auto-suppress bounced and unsubscribed
-      if(inst.status==='bounced'||inst.status==='unsubscribed'){
-        updates[updates.length-1].suppressed=true;
-        updates[updates.length-1].suppressed_reason=inst.status;
-      }
+      contactsMatched++;
+      const upd={id:ct.id,instantly_status:inst.status,instantly_campaign:inst.campaign,instantly_last_contacted:inst.last_contacted||null};
+      if(inst.status==='bounced'||inst.status==='unsubscribed'){upd.suppressed=true;upd.suppressed_reason=inst.status;}
+      contactUpdates.push(upd);
     } else {
-      // Clear status if no longer in Instantly
-      updates.push({id:ct.id,instantly_status:null,instantly_campaign:null});
+      contactUpdates.push({id:ct.id,instantly_status:null,instantly_campaign:null});
     }
   });
 
-  const pct=n=>Math.round(n/updates.length*100);
-  for(let i=0;i<updates.length;i+=200){
-    const chunk=updates.slice(i,i+200);
-    await Promise.all(chunk.map(u=>{
-      const{id,...fields}=u;
-      return sbClient.from('contacts').update(fields).eq('id',id);
-    }));
-    updated+=chunk.length;
-    const p=pct(updated);
+  for(let i=0;i<contactUpdates.length;i+=200){
+    const chunk=contactUpdates.slice(i,i+200);
+    await Promise.all(chunk.map(u=>{const{id,...f}=u;return sbClient.from('contacts').update(f).eq('id',id);}));
+    const p=Math.round((i+chunk.length)/contactUpdates.length*100);
     document.getElementById('inst-pg-fill').style.width=p+'%';
     document.getElementById('inst-pg-pct').textContent=p+'%';
-    document.getElementById('inst-pg-lbl').textContent=`Updating ${updated.toLocaleString()} / ${updates.length.toLocaleString()}`;
+    document.getElementById('inst-pg-lbl').textContent=`Contacts: ${i+chunk.length}/${contactUpdates.length}`;
   }
 
-  // Update stats display
+  // ── UPDATE COMPANIES TABLE ──
+  const{data:dbCompanies}=await sbClient.from('companies').select('id,domain');
+  let companiesMatched=0;
+  const companyUpdates=[];
+  (dbCompanies||[]).forEach(co=>{
+    const domain=co.domain||'';
+    const inst=domainMap[domain];
+    if(inst&&domain){
+      companiesMatched++;
+      companyUpdates.push({
+        id:co.id,
+        inst_status:inst.status,
+        inst_campaign:inst.campaign,
+        inst_last_contacted:inst.last_contacted||null,
+        inst_contacted_count:inst.count||0
+      });
+    } else {
+      companyUpdates.push({id:co.id,inst_status:null,inst_campaign:null,inst_contacted_count:0});
+    }
+  });
+
+  for(let i=0;i<companyUpdates.length;i+=200){
+    const chunk=companyUpdates.slice(i,i+200);
+    await Promise.all(chunk.map(u=>{const{id,...f}=u;return sbClient.from('companies').update(f).eq('id',id);}));
+    document.getElementById('inst-pg-lbl').textContent=`Companies: ${i+chunk.length}/${companyUpdates.length}`;
+  }
+
   await loadInstantlyStatusStats();
   prog.style.display='none';
-  const msg=`✓ Sync complete — ${matched.toLocaleString()} contacts matched to Instantly (${total.toLocaleString()} total Instantly leads)`;
-  st.textContent=msg;
-  // Save last synced time
   const syncTime=new Date().toLocaleString();
   localStorage.setItem('inst_last_sync',syncTime);
   document.getElementById('inst-last-sync').textContent=`Last synced: ${syncTime}`;
-  toast('Sync complete','ok');
+  const msg=`✓ Sync complete — ${contactsMatched} contacts + ${companiesMatched} companies matched`;
+  st.textContent=msg;
+  toast(msg,'ok');
 }
 
 async function loadInstantlyStatusStats(){
   if(!sbClient)return;
-  const{data}=await sbClient.from('contacts').select('instantly_status');
+  const[{data:cts},{data:cos}]=await Promise.all([
+    sbClient.from('contacts').select('instantly_status'),
+    sbClient.from('companies').select('inst_status')
+  ]);
   const counts={active:0,replied:0,bounced:0,unsubscribed:0,none:0};
-  (data||[]).forEach(r=>{const s=r.instantly_status||'none';counts[s]=(counts[s]||0)+1;});
+  (cts||[]).forEach(r=>{const s=r.instantly_status||'none';counts[s]=(counts[s]||0)+1;});
   document.getElementById('ist-active').textContent=counts.active||0;
   document.getElementById('ist-replied').textContent=counts.replied||0;
   document.getElementById('ist-bounced').textContent=counts.bounced||0;
   document.getElementById('ist-unsub').textContent=counts.unsubscribed||0;
   document.getElementById('ist-none').textContent=counts.none||0;
+  // Company stats
+  const coTouched=(cos||[]).filter(r=>r.inst_status).length;
+  const elCoTouched=document.getElementById('ist-co-touched');
+  if(elCoTouched)elCoTouched.textContent=coTouched||0;
 }
 
 async function toggleCampExpand(campId, campName){
@@ -2003,7 +2045,7 @@ async function deleteCompany(id){if(!confirm('Delete this company permanently?')
 ══════════════════════════════════════════ */
 async function loadBrowse(){
   if(!sbClient)return;
-  const{data}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override').order('name').limit(3000);
+  const{data}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count').order('name').limit(3000);
   allBrowse=data||[];selectedRows.clear();updateBulkBar();filterBrowse();
 }
 function filterBrowse(){
@@ -2012,12 +2054,15 @@ function filterBrowse(){
   const s=document.getElementById('br-status').value;
   const st=document.getElementById('br-state').value;
   const nw=document.getElementById('br-noweb')?.checked;
+  const instF=document.getElementById('br-inst')?.value||'';
   let rows=allBrowse;
   if(q)rows=rows.filter(r=>(r.name||'').toLowerCase().includes(q)||(r.website||'').toLowerCase().includes(q)||(r.state||'').toLowerCase().includes(q));
   if(v)rows=rows.filter(r=>r.vertical===v);
   if(s)rows=rows.filter(r=>r.status===s);
   if(st)rows=rows.filter(r=>(r.state||'').toUpperCase()===st);
   if(nw)rows=rows.filter(r=>!r.website);
+  if(instF==='none')rows=rows.filter(r=>!r.inst_status);
+  else if(instF)rows=rows.filter(r=>r.inst_status===instF);
   rows=[...rows].sort((a,b)=>{
     if(browseSort.col==='_score'){
       const sa=calcScore(a),sb=calcScore(b);
@@ -2035,7 +2080,7 @@ function filterBrowse(){
     <th><input type="checkbox" id="sel-all" onclick="toggleSelectAll(this)" style="width:auto"/></th>
     ${th('name','Company')}${th('website','Website')}${th('state','ST')}
     <th>Categories</th>${th('vertical','Vertical')}${th('_score','Score')}
-    <th>Tags</th><th>Contact</th>${th('status','Status')}<th></th>
+    <th>Tags</th><th>Instantly</th><th>Contact</th>${th('status','Status')}<th></th>
   </tr></thead><tbody>`;
   rows.forEach(r=>{
     const sel=selectedRows.has(r.id);
@@ -2052,6 +2097,7 @@ function filterBrowse(){
       <td>${r.vertical?vbadge(r.vertical):'—'}</td>
       <td><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${tier.color}">${tier.emoji} ${tier.tier}</span><span style="font-family:var(--mono);font-size:10px;color:var(--muted)"> ${sc}</span></td>
       <td>${tagBadges||'—'}</td>
+      <td>${r.inst_status?`<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:3px;background:${r.inst_status==='replied'?'rgba(16,185,129,.15)':r.inst_status==='active'?'rgba(234,179,8,.15)':'rgba(239,68,68,.15)'};color:${r.inst_status==='replied'?'var(--green)':r.inst_status==='active'?'var(--yellow)':'var(--red)'}">${r.inst_status}</span>${r.inst_contacted_count>0?`<span style="font-size:9px;color:var(--muted);margin-left:3px">${r.inst_contacted_count}x</span>`:''}`:'—'}</td>
       <td class="mn">${esc([r.contact_first_name,r.contact_last_name].filter(Boolean).join(' ')||r.contact_email||'—')}</td>
       <td>${statusBadge(r.status)}</td>
       <td><button class="btn btn-r btn-sm" onclick="deleteBrowse('${r.id}',this)">🗑</button></td>
@@ -2116,6 +2162,21 @@ async function openDrawer(id){
       <div style="font-size:10px;color:var(--muted2)">0–100, blank = auto</div>
     </div>
   </div>`;
+
+  // Instantly status panel
+  if(co.inst_status){
+    const instColor=co.inst_status==='replied'?'var(--green)':co.inst_status==='bounced'||co.inst_status==='unsubscribed'?'var(--red)':'var(--yellow)';
+    const instEmoji=co.inst_status==='replied'?'💬':co.inst_status==='bounced'?'❌':co.inst_status==='unsubscribed'?'🚫':'📤';
+    const lastDate=co.inst_last_contacted?new Date(co.inst_last_contacted).toLocaleDateString():'unknown date';
+    html+=`<div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.3);border-radius:8px;padding:12px 14px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:${instColor};letter-spacing:.08em;text-transform:uppercase">${instEmoji} Already in Instantly</div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${co.inst_contacted_count||0} contact${(co.inst_contacted_count||0)!==1?'s':''} emailed</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">Status: <strong style="color:${instColor}">${co.inst_status}</strong> · Last: <strong style="color:var(--text)">${lastDate}</strong></div>
+      ${co.inst_campaign?`<div style="font-size:11px;color:var(--muted);margin-top:3px;font-family:var(--mono)">Campaign: ${esc(co.inst_campaign)}</div>`:''}
+    </div>`;
+  }
 
   html+=`<div class="dr-section"><h4>Vertical</h4>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
