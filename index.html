@@ -1042,36 +1042,40 @@ async function instLoadInboxes(){
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--yellow);cursor:pointer"><input type="radio" name="inbox-filter" value="assigned" onchange="filterInboxes()" style="width:auto"/> 📢 Assigned (${assignedCount})</label>
     </div>
     <div id="inbox-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
-    ${allInboxes.map(inbox=>{
-      const email=inbox.email||'';
-      const statusLabel=inbox.status===1?'active':inbox.status===2?'paused':'unknown';
-      const statusColor=inbox.status===1?'var(--green)':inbox.status===2?'var(--yellow)':'var(--muted)';
-      const dailyLimit=inbox.daily_limit||inbox.sending_limit||inbox.warmup?.limit||20;
-      const campaigns=assignmentMap[email]||[];
-      const isFree=campaigns.length===0;
-      const wData=warmupMap[email]||{};
-      const w=wData[today]||wData[yesterday]||wData[Object.keys(wData).sort().reverse()[0]]||null;
-      const warmupSent=w?.sent||0;const warmupInbox=w?.landed_inbox||0;const warmupSpam=w?.landed_spam||0;
-      return\`<div class="inbox-card" data-free="\${isFree}" style="background:var(--s2);border:1px solid \${isFree?'rgba(16,185,129,.4)':'var(--bd)'};border-radius:7px;padding:10px">
-        <div style="font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)" title="\${esc(email)}">\${esc(email)}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <span style="font-size:10px;color:\${statusColor}">⬤ \${statusLabel}</span>
-          <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">\${dailyLimit}/day</span>
-        </div>
-        \${isFree
-          ?'<div style="font-size:10px;color:var(--green);font-weight:600">✓ Available</div>'
-          :\`<div style="font-size:10px;color:var(--yellow)">\${campaigns.length} campaign\${campaigns.length>1?'s':''}</div><div style="font-size:9px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="\${esc(campaigns.join(', '))}">\${esc(campaigns[0])}\${campaigns.length>1?\` +\${campaigns.length-1}\`:''}</div>\`
-        }
-        \${w?'<div style="font-size:9px;color:var(--muted);margin-top:3px">'+warmupInbox+'📬 '+warmupSpam+'🚫 / '+warmupSent+'</div>':''}      </div>\`;
+    ${allInboxes.map(function(inbox){
+      var email=inbox.email||'';
+      var statusLabel=inbox.status===1?'active':inbox.status===2?'paused':'unknown';
+      var statusColor=inbox.status===1?'var(--green)':inbox.status===2?'var(--yellow)':'var(--muted)';
+      var dailyLimit=inbox.daily_limit||inbox.sending_limit||(inbox.warmup&&inbox.warmup.limit)||20;
+      var campaigns=assignmentMap[email]||[];
+      var isFree=campaigns.length===0;
+      var wData=warmupMap[email]||{};
+      var wKeys=Object.keys(wData).sort().reverse();
+      var w=wData[today]||wData[yesterday]||( wKeys.length?wData[wKeys[0]]:null);
+      var warmupSent=w&&w.sent||0;
+      var warmupInboxC=w&&w.landed_inbox||0;
+      var warmupSpam=w&&w.landed_spam||0;
+      var border=isFree?'rgba(16,185,129,.5)':'var(--bd)';
+      var campHtml=isFree
+        ?'<div style="font-size:10px;color:var(--green);font-weight:600">\u2713 Available</div>'
+        :'<div style="font-size:10px;color:var(--yellow)">'+campaigns.length+' campaign'+(campaigns.length>1?'s':'')+'</div><div style="font-size:9px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(campaigns[0])+(campaigns.length>1?' +'+(campaigns.length-1):'')+'</div>';
+      var warmupHtml=w?'<div style="font-size:9px;color:var(--muted);margin-top:3px">'+warmupInboxC+'\ud83d\udce4 '+warmupSpam+'\ud83d\udeab / '+warmupSent+'</div>':'';
+      return '<div class="inbox-card" data-free="'+isFree+'" style="background:var(--s2);border:1px solid '+border+';border-radius:7px;padding:10px">'
+        +'<div style="font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)" title="'+esc(email)+'">'+esc(email)+'</div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+        +'<span style="font-size:10px;color:'+statusColor+'">\u2b24 '+statusLabel+'</span>'
+        +'<span style="font-family:var(--mono);font-size:9px;color:var(--muted)">'+dailyLimit+'/day</span>'
+        +'</div>'+campHtml+warmupHtml+'</div>';
     }).join('')}
     </div>`;
 }
 
 function filterInboxes(){
-  const val=document.querySelector('input[name="inbox-filter"]:checked')?.value||'all';
-  document.querySelectorAll('.inbox-card').forEach(card=>{
-    const isFree=card.dataset.free==='true';
-    card.style.display=(val==='all'||(val==='free'&&isFree)||(val==='assigned'&&!isFree))?'':\`none\`;
+  var val=document.querySelector('input[name="inbox-filter"]:checked');
+  var v=val?val.value:'all';
+  document.querySelectorAll('.inbox-card').forEach(function(card){
+    var isFree=card.dataset.free==='true';
+    card.style.display=(v==='all'||(v==='free'&&isFree)||(v==='assigned'&&!isFree))?'':'none';
   });
 }
 
