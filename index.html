@@ -8,11 +8,12 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 :root{
-  --bg:#07090d;--s1:#0d1117;--s2:#121820;--s3:#18212c;--s4:#1e2a37;
-  --bd:#222e3c;--bd2:#2d3f52;
-  --text:#cdd9e5;--muted:#4d6478;--muted2:#2a3a4a;
-  --accent:#f97316;--blue:#3b82f6;--green:#22c55e;
-  --yellow:#eab308;--red:#ef4444;--cyan:#06b6d4;--purple:#a855f7;
+  --bg:#0a0e1a;--s1:#0f1729;--s2:#141e35;--s3:#1a2540;--s4:#1f2d4d;
+  --bd:#1e2d4a;--bd2:#2a3d5e;
+  --text:#e2e8f0;--muted:#64748b;--muted2:#1e2d4a;
+  --accent:#7c3aed;--blue:#3b82f6;--green:#10b981;
+  --yellow:#f59e0b;--red:#ef4444;--cyan:#06b6d4;--purple:#8b5cf6;
+  --accent2:#6d28d9;--glow:rgba(124,58,237,.25);
   --mono:'JetBrains Mono',monospace;--sans:'DM Sans',sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -25,7 +26,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .gate{display:none;align-items:center;justify-content:center;height:100vh;padding:20px;}
 .gate.show{display:flex;}
 .gate-box{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:36px;width:100%;max-width:420px;}
-.gate-logo{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px;}
+.gate-logo{font-family:var(--sans);font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;}
 .gate-title{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px;}
 .gate-sub{font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.5;}
 .gate-tabs{display:flex;gap:0;margin-bottom:24px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:3px;}
@@ -43,11 +44,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 /* ── APP ── */
 #app{display:none;flex-direction:column;height:100vh;}
 #app.show{display:flex;}
-header{display:flex;align-items:center;gap:10px;padding:0 20px;height:50px;flex-shrink:0;background:var(--s1);border-bottom:1px solid var(--bd);}
-.logo{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.12em;white-space:nowrap;}
-.logo span{color:var(--muted);font-weight:400;}
+header{display:flex;align-items:center;gap:10px;padding:0 20px;height:52px;flex-shrink:0;background:var(--s1);border-bottom:1px solid var(--bd);box-shadow:0 1px 20px rgba(124,58,237,.08);}
+.logo{font-family:var(--sans);font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.01em;white-space:nowrap;}
+.logo span{color:var(--purple);font-weight:400;}
 .hd{width:1px;height:18px;background:var(--bd);flex-shrink:0;}
-.kf{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd);border-radius:5px;padding:5px 10px;}
+.kf{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:5px 10px;}
 .kf label{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);white-space:nowrap;letter-spacing:.06em;text-transform:uppercase;}
 .kf input{background:none;border:none;outline:none;font-family:var(--mono);font-size:11px;color:var(--text);width:220px;}
 .kf input::placeholder{color:var(--muted2);}
@@ -57,64 +58,68 @@ header{display:flex;align-items:center;gap:10px;padding:0 20px;height:50px;flex-
 .user-email{font-family:var(--mono);font-size:10px;color:var(--muted);}
 
 nav{display:flex;padding:0 20px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0;overflow-x:auto;}
-.nb{padding:9px 14px;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:500;color:var(--muted);transition:color .15s,border-color .15s;white-space:nowrap;}
+.nb{padding:12px 16px;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:500;color:var(--muted);transition:color .15s,border-color .15s;white-space:nowrap;}
 .nb:hover{color:var(--text);}
-.nb.active{color:var(--accent);border-bottom-color:var(--accent);}
+.nb.active{color:var(--purple);border-bottom-color:var(--purple);font-weight:600;}
 .nb .cnt{display:inline-block;padding:1px 6px;border-radius:9px;font-family:var(--mono);font-size:9px;font-weight:700;margin-left:5px;background:var(--s3);color:var(--muted);}
-.nb.active .cnt{background:rgba(249,115,22,.15);color:var(--accent);}
+.nb.active .cnt{background:rgba(124,58,237,.2);color:var(--purple);}
 
-main{flex:1;overflow-y:auto;padding:22px;}
+main{flex:1;overflow-y:auto;padding:24px;}
 .tab{display:none;}.tab.active{display:block;}
 
 /* ── DRAWER ── */
-.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99;display:none;}
+.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99;display:none;}
 .drawer-overlay.open{display:block;}
-.drawer{position:fixed;top:0;right:-560px;width:560px;height:100vh;background:var(--s1);border-left:1px solid var(--bd);z-index:100;overflow-y:auto;transition:right .25s ease;display:flex;flex-direction:column;}
+.drawer{position:fixed;top:0;right:-560px;width:560px;height:100vh;background:var(--s1);border-left:1px solid var(--bd);z-index:100;overflow-y:auto;transition:right .25s ease;display:flex;flex-direction:column;box-shadow:-4px 0 40px rgba(0,0,0,.4);}
 .drawer.open{right:0;}
-.dr-hdr{display:flex;align-items:flex-start;justify-content:space-between;padding:20px 22px;border-bottom:1px solid var(--bd);flex-shrink:0;}
+.dr-hdr{display:flex;align-items:flex-start;justify-content:space-between;padding:20px 22px;border-bottom:1px solid var(--bd);flex-shrink:0;background:var(--s2);}
 .dr-name{font-size:17px;font-weight:700;margin-bottom:4px;}
 .dr-meta{font-family:var(--mono);font-size:10px;color:var(--muted);}
 .dr-body{padding:20px 22px;flex:1;}
 .dr-section{margin-bottom:20px;}
-.dr-section h4{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;}
+.dr-section h4{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--purple);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;}
 .dr-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
 .dr-field .dl{font-size:10px;color:var(--muted);margin-bottom:2px;}
 .dr-field .dv{font-size:13px;color:var(--text);}
 .dr-field .dv.mono{font-family:var(--mono);font-size:11px;}
-.dr-field .dv.link a{color:var(--accent);text-decoration:none;font-family:var(--mono);font-size:11px;}
+.dr-field .dv.link a{color:var(--purple);text-decoration:none;font-family:var(--mono);font-size:11px;}
 .contact-item{background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:12px;margin-bottom:8px;}
-.contact-item .ce{font-family:var(--mono);font-size:11px;color:var(--accent);}
+.contact-item .ce{font-family:var(--mono);font-size:11px;color:var(--purple);}
 .contact-item .cn{font-weight:600;font-size:13px;margin-bottom:2px;}
 .contact-item .ct{font-size:11px;color:var(--muted);}
 
 /* ── BULK BAR ── */
-#bulk-bar{position:sticky;top:0;z-index:10;background:var(--s3);border:1px solid var(--accent);border-radius:8px;padding:10px 16px;display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+#bulk-bar{position:sticky;top:0;z-index:10;background:var(--s3);border:1px solid var(--purple);border-radius:8px;padding:10px 16px;display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;box-shadow:0 0 20px var(--glow);}
 #bulk-bar.show{display:flex;}
-#bulk-count{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:700;margin-right:4px;}
+#bulk-count{font-family:var(--mono);font-size:11px;color:var(--purple);font-weight:700;margin-right:4px;}
 
 /* ── CARDS ── */
-.card{background:var(--s1);border:1px solid var(--bd);border-radius:9px;padding:20px;margin-bottom:16px;}
-.card-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:0 1px 10px rgba(0,0,0,.2);}
+.card-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--purple);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;}
 .sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:18px;}
-.sc{background:var(--s1);border:1px solid var(--bd);border-radius:7px;padding:14px 16px;}
+.sc{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:14px 16px;transition:border-color .15s,box-shadow .15s;}
+.sc:hover{border-color:var(--bd2);box-shadow:0 0 15px rgba(124,58,237,.1);}
 .sc .l{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:5px;}
 .sc .v{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--text);}
-.sc .v.o{color:var(--accent)}.sc .v.g{color:var(--green)}.sc .v.y{color:var(--yellow)}.sc .v.r{color:var(--red)}.sc .v.b{color:var(--blue)}
+.sc .v.o{color:var(--purple)}.sc .v.g{color:var(--green)}.sc .v.y{color:var(--yellow)}.sc .v.r{color:var(--red)}.sc .v.b{color:var(--blue)}
 
 /* ── FIELDS ── */
 .f{display:flex;flex-direction:column;gap:4px;}
 .f label{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;}
-.f input,.f select,.f textarea{background:var(--s2);border:1px solid var(--bd);border-radius:5px;padding:8px 11px;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;transition:border-color .15s;}
-.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--accent);}
+.f input,.f select,.f textarea{background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:8px 11px;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;transition:border-color .15s;}
+.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--purple);box-shadow:0 0 0 3px var(--glow);}
 .f textarea{resize:vertical;min-height:80px;font-family:var(--mono);font-size:11px;line-height:1.6;}
 select option{background:var(--s2);}
 
 /* ── BUTTONS ── */
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:5px;border:none;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600;transition:opacity .15s,transform .1s;white-space:nowrap;}
-.btn:hover:not(:disabled){opacity:.82;}.btn:active:not(:disabled){transform:scale(.97);}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;border:none;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600;transition:opacity .15s,transform .1s,box-shadow .15s;white-space:nowrap;}
+.btn:hover:not(:disabled){opacity:.88;box-shadow:0 2px 12px rgba(0,0,0,.3);}
+.btn:active:not(:disabled){transform:scale(.97);}
 .btn:disabled{opacity:.35;cursor:not-allowed;}
-.btn-o{background:var(--accent);color:#000;}.btn-b{background:var(--blue);color:#fff;}
-.btn-r{background:var(--red);color:#fff;}.btn-g{background:var(--s3);color:var(--text);border:1px solid var(--bd2);}
+.btn-o{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 2px 12px var(--glow);}
+.btn-b{background:var(--blue);color:#fff;}
+.btn-r{background:var(--red);color:#fff;}
+.btn-g{background:var(--s3);color:var(--text);border:1px solid var(--bd2);}
 .btn-green{background:var(--green);color:#000;}
 .btn-sm{padding:5px 11px;font-size:12px;}.btn-full{width:100%;justify-content:center;padding:11px;}
 
@@ -237,8 +242,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
 <!-- CONFIG SCREEN -->
 <div class="gate" id="screen-config">
   <div class="gate-box">
-    <div class="gate-logo">PFG / Enrichment</div>
-    <div class="gate-title">Connect Database</div>
+    <div class="gate-logo">🐸 PFG Enrichment</div>
     <div class="gate-sub">One-time setup. Credentials stored locally — never sent anywhere except directly to Supabase and Anthropic.</div>
     <div id="cfg-err" class="gate-err"></div>
     <div class="gf"><label>Supabase Project URL</label><input type="text" id="cfg-url" placeholder="https://xxxx.supabase.co"/></div>
@@ -251,7 +255,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
 <!-- AUTH SCREEN -->
 <div class="gate" id="screen-auth">
   <div class="gate-box">
-    <div class="gate-logo">PFG / Enrichment</div>
+    <div class="gate-logo">🐸 PFG Enrichment</div>
     <div class="gate-title">Sign In</div>
     <div class="gate-sub">Access restricted to authorized accounts only.</div>
     <div class="gate-tabs">
@@ -271,7 +275,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
 <!-- MAIN APP -->
 <div id="app">
   <header>
-    <div class="logo">PFG<span>/enrichment</span></div>
+    <div class="logo">🐸 PFG<span> / Enrichment</span></div>
     <div class="hd"></div>
     <div class="kf"><label>Anthropic Key</label><input type="password" id="cfg-ant" placeholder="sk-ant-api03-..." oninput="saveAntKey()"/></div>
     <div id="cdot"></div>
@@ -548,6 +552,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <p style="color:var(--muted);font-size:12px;margin-bottom:14px">Pulls every lead from every Instantly campaign and stamps your contacts table with their current status — active, replied, bounced, unsubscribed. Run this before reviewing or exporting so you always know who's already been contacted.</p>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <button class="btn btn-o" onclick="instBulkSyncContacts()">⟳ Sync All Contact Statuses</button>
+        <button class="btn btn-g btn-sm" onclick="instSyncCompanies()">⟳ Sync Companies by Domain</button>
         <button class="btn btn-g btn-sm" onclick="instSyncSuppression()">⟳ Sync Suppression Only</button>
         <button class="btn btn-g btn-sm" onclick="instDebug()">Debug API</button>
       </div>
@@ -937,19 +942,26 @@ async function instLoadCampaigns(){
     const statusMap={1:'active',2:'paused',3:'completed',0:'draft'};
     const statusLabel=statusMap[c.status]||String(c.status||'unknown');
     const statusColor=c.status===1?'var(--green)':c.status===2?'var(--yellow)':'var(--muted)';
-    return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:10px;margin-bottom:8px;overflow:hidden;transition:border-color .15s;" id="camp-card-${c.id}">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer" onclick="toggleCampExpand('${c.id}','${esc(c.name)}')">
         <div>
-          <div style="font-weight:600;font-size:13px;margin-bottom:3px">${esc(c.name||'Unnamed')}</div>
-          <div style="font-family:var(--mono);font-size:10px;color:${statusColor}">${statusLabel}</div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:3px">${esc(c.name||'Unnamed')}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:${statusColor}">⬤ ${statusLabel}</div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(5,62px);gap:8px;text-align:center">
-          <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text)">${sent.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">SENT</div></div>
-          <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text)">${contacted.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">CONTACTED</div></div>
-          <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--blue)">${openPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">OPENS</div></div>
-          <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--green)">${replyPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">REPLIES</div></div>
-          <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--red)">${bounces}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">BOUNCES</div></div>
+        <div style="display:flex;align-items:center;gap:20px">
+          <div style="display:grid;grid-template-columns:repeat(5,62px);gap:8px;text-align:center">
+            <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text)">${sent.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">SENT</div></div>
+            <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text)">${contacted.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">CONTACTED</div></div>
+            <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--blue)">${openPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">OPENS</div></div>
+            <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--green)">${replyPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">REPLIES</div></div>
+            <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--red)">${bounces}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">BOUNCES</div></div>
+          </div>
+          <span style="color:var(--muted);font-size:12px" id="camp-chevron-${c.id}">▼</span>
         </div>
+      </div>
+      <div id="camp-expand-${c.id}" style="display:none;border-top:1px solid var(--bd);padding:14px 16px;background:var(--s1)">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--purple);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Sending Accounts</div>
+        <div id="camp-accounts-${c.id}" style="color:var(--muted);font-size:11px">Loading...</div>
       </div>
     </div>`;
   }).join('');
@@ -1114,7 +1126,65 @@ async function loadInstantlyStatusStats(){
   document.getElementById('ist-none').textContent=counts.none||0;
 }
 
-async function instSyncSuppression(){
+async function toggleCampExpand(campId, campName){
+  const expand=document.getElementById(`camp-expand-${campId}`);
+  const chevron=document.getElementById(`camp-chevron-${campId}`);
+  const accountsEl=document.getElementById(`camp-accounts-${campId}`);
+  const isOpen=expand.style.display!=='none';
+  expand.style.display=isOpen?'none':'block';
+  chevron.textContent=isOpen?'▼':'▲';
+  if(!isOpen&&accountsEl.textContent==='Loading...'){
+    // Fetch account-campaign mappings
+    const data=await instFetch('/api/v2/account-campaign-mappings',{campaign_id:campId,limit:100});
+    const items=data?.items||[];
+    if(!items.length){accountsEl.innerHTML='<span style="color:var(--muted);font-size:11px">No accounts assigned</span>';return;}
+    accountsEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">${items.map(m=>`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:var(--s2);border:1px solid var(--bd);color:var(--text)">${esc(m.email||m.account||'—')}</span>`).join('')}</div>`;
+  }
+}
+
+async function instSyncCompanies(){
+  if(!sbClient||!sessionStorage.getItem('inst_key'))return;
+  const st=document.getElementById('inst-sync-st');
+  st.textContent='Building domain map from Instantly...';
+  // Pull all leads and index by domain
+  const domainMap={}; // domain → {status, campaign, last_contacted}
+  let startingAfter=null,page=0,total=0;
+  while(page<100){
+    const params={limit:100};if(startingAfter)params.starting_after=startingAfter;
+    const data=await instFetch('/api/v2/leads',params);
+    if(!data||!data.items?.length)break;
+    data.items.forEach(lead=>{
+      const email=(lead.email||'').toLowerCase();
+      const domain=email.split('@')[1]||'';
+      if(!domain)return;
+      const status=lead.status===2?'unsubscribed':lead.status===3?'bounced':lead.replied?'replied':'active';
+      const priority={replied:4,bounced:3,unsubscribed:3,active:1};
+      if(!domainMap[domain]||(priority[status]||0)>(priority[domainMap[domain].status]||0)){
+        domainMap[domain]={status,campaign:lead.campaign_name||'',last_contacted:lead.timestamp_updated||null};
+      }
+    });
+    total+=data.items.length;
+    st.textContent=`Pulled ${total.toLocaleString()} leads — building domain map...`;
+    if(!data.next_starting_after||data.items.length<100)break;
+    startingAfter=data.next_starting_after;page++;
+  }
+  st.textContent=`Matching ${Object.keys(domainMap).length} domains against companies...`;
+  // Load all companies with domains
+  const{data:cos}=await sbClient.from('companies').select('id,domain');
+  let matched=0;
+  const updates=[];
+  (cos||[]).forEach(co=>{
+    const inst=domainMap[co.domain||''];
+    if(inst){matched++;updates.push({id:co.id,instantly_status:inst.status,instantly_campaign:inst.campaign});}
+    else updates.push({id:co.id,instantly_status:null,instantly_campaign:null});
+  });
+  for(let i=0;i<updates.length;i+=200){
+    const chunk=updates.slice(i,i+200);
+    await Promise.all(chunk.map(u=>{const{id,...f}=u;return sbClient.from('companies').update(f).eq('id',id);}));
+  }
+  st.textContent=`✓ ${matched} companies matched to Instantly leads`;
+  toast(`${matched} companies synced`,'ok');
+}
   const st=document.getElementById('inst-sync-st');
   // Pull all contacts with terminal statuses
   let allLeads=[],startingAfter=null,page=0;
