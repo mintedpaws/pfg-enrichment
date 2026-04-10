@@ -992,7 +992,7 @@ function renderCampList(){
 
 async function instLoadInboxes(){
   const st=document.getElementById('inst-inbox-st');
-  st.textContent='Loading...';
+  st.textContent='Loading inboxes...';
   let allInboxes=[],startingAfter=null;
   for(let i=0;i<10;i++){
     const params={limit:100};if(startingAfter)params.starting_after=startingAfter;
@@ -1003,7 +1003,19 @@ async function instLoadInboxes(){
     startingAfter=data.next_starting_after;
   }
   if(!allInboxes.length){st.textContent='No inboxes found.';document.getElementById('inst-inbox-grid').innerHTML='<div class="empty">No inboxes found.</div>';return;}
-  st.textContent=`${allInboxes.length} inboxes`;
+  st.textContent=`${allInboxes.length} inboxes — loading assignments...`;
+  // Build assignment map from already-loaded campaign data
+  const assignmentMap={};
+  if(instCampData.length){
+    const campDetails=await Promise.all(instCampData.map(c=>instFetch('/api/v2/campaigns/'+c.id).catch(()=>null)));
+    campDetails.forEach((camp,i)=>{
+      if(!camp)return;
+      const campName=instCampData[i].name||'Unknown';
+      const accts=camp.email_accounts||camp.accounts||camp.sending_accounts||camp.eaccounts||[];
+      accts.forEach(a=>{const email=typeof a==='string'?a:(a.email||a.address||'');if(!email)return;if(!assignmentMap[email])assignmentMap[email]=[];assignmentMap[email].push(campName);});
+    });
+  }
+  st.textContent=`${allInboxes.length} inboxes — loading warmup...`;
 
   // Get warmup data for all inboxes via POST
   const emails=allInboxes.map(a=>a.email).filter(Boolean);
@@ -1019,34 +1031,48 @@ async function instLoadInboxes(){
 
   const today=new Date().toISOString().slice(0,10);
   const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+  const assignedCount=allInboxes.filter(i=>assignmentMap[i.email]?.length>0).length;
+  document.getElementById('inst-inbox-st').textContent=`${allInboxes.length} inboxes · ${assignedCount} assigned · ${allInboxes.length-assignedCount} free`;
+  allInboxes.sort((a,b)=>{const af=!assignmentMap[a.email]?.length,bf=!assignmentMap[b.email]?.length;if(af&&!bf)return -1;if(!af&&bf)return 1;return(a.email||'').localeCompare(b.email||'');});
   const el=document.getElementById('inst-inbox-grid');
-
-  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
+  el.innerHTML=`
+    <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer"><input type="radio" name="inbox-filter" value="all" checked onchange="filterInboxes()" style="width:auto"/> All (${allInboxes.length})</label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--green);cursor:pointer;font-weight:600"><input type="radio" name="inbox-filter" value="free" onchange="filterInboxes()" style="width:auto"/> ✓ Free (${allInboxes.length-assignedCount})</label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--yellow);cursor:pointer"><input type="radio" name="inbox-filter" value="assigned" onchange="filterInboxes()" style="width:auto"/> 📢 Assigned (${assignedCount})</label>
+    </div>
+    <div id="inbox-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
     ${allInboxes.map(inbox=>{
       const email=inbox.email||'';
-      const statusLabel=inbox.status===1?'active':inbox.status===2?'paused':inbox.status===0?'pending':'unknown';
+      const statusLabel=inbox.status===1?'active':inbox.status===2?'paused':'unknown';
       const statusColor=inbox.status===1?'var(--green)':inbox.status===2?'var(--yellow)':'var(--muted)';
       const dailyLimit=inbox.daily_limit||inbox.sending_limit||inbox.warmup?.limit||20;
-      // Find most recent warmup data — try today, yesterday, then latest available date
+      const campaigns=assignmentMap[email]||[];
+      const isFree=campaigns.length===0;
       const wData=warmupMap[email]||{};
-      const wToday=wData[today]||wData[yesterday]||null;
-      const latestDate=wToday?null:Object.keys(wData).sort().reverse()[0];
-      const w=wToday||(latestDate?wData[latestDate]:null);
-      const warmupSent=w?.sent||0;
-      const warmupInbox=w?.landed_inbox||0;
-      const warmupSpam=w?.landed_spam||0;
-      const inboxPct=warmupSent>0?Math.round(warmupInbox/warmupSent*100):0;
-      const dateLabel=wData[today]?'today':wData[yesterday]?'yesterday':latestDate?latestDate:'—';
-      return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:10px">
-        <div style="font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)" title="${esc(email)}">${esc(email)}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-          <span style="font-size:10px;color:${statusColor}">⬤ ${statusLabel}</span>
-          <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">${dailyLimit}/day</span>
+      const w=wData[today]||wData[yesterday]||wData[Object.keys(wData).sort().reverse()[0]]||null;
+      const warmupSent=w?.sent||0;const warmupInbox=w?.landed_inbox||0;const warmupSpam=w?.landed_spam||0;
+      return\`<div class="inbox-card" data-free="\${isFree}" style="background:var(--s2);border:1px solid \${isFree?'rgba(16,185,129,.4)':'var(--bd)'};border-radius:7px;padding:10px">
+        <div style="font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)" title="\${esc(email)}">\${esc(email)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:10px;color:\${statusColor}">⬤ \${statusLabel}</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">\${dailyLimit}/day</span>
         </div>
-        ${w?`<div style="font-size:10px;color:var(--muted)">${dateLabel}: <span style="color:var(--green)">${warmupInbox}📬</span> <span style="color:var(--red)">${warmupSpam}🚫</span> / ${warmupSent} (${inboxPct}%)</div>`:`<div style="font-size:10px;color:var(--muted2)">No warmup data</div>`}
-      </div>`;
+        \${isFree
+          ?'<div style="font-size:10px;color:var(--green);font-weight:600">✓ Available</div>'
+          :\`<div style="font-size:10px;color:var(--yellow)">\${campaigns.length} campaign\${campaigns.length>1?'s':''}</div><div style="font-size:9px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="\${esc(campaigns.join(', '))}">\${esc(campaigns[0])}\${campaigns.length>1?\` +\${campaigns.length-1}\`:''}</div>\`
+        }
+        \${w?'<div style="font-size:9px;color:var(--muted);margin-top:3px">'+warmupInbox+'📬 '+warmupSpam+'🚫 / '+warmupSent+'</div>':''}      </div>\`;
     }).join('')}
-  </div>`;
+    </div>`;
+}
+
+function filterInboxes(){
+  const val=document.querySelector('input[name="inbox-filter"]:checked')?.value||'all';
+  document.querySelectorAll('.inbox-card').forEach(card=>{
+    const isFree=card.dataset.free==='true';
+    card.style.display=(val==='all'||(val==='free'&&isFree)||(val==='assigned'&&!isFree))?'':\`none\`;
+  });
 }
 
 async function instBulkSyncContacts(){
