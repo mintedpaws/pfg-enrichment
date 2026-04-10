@@ -1198,22 +1198,17 @@ async function instBulkSyncContacts(){
   const statusPriority={replied:4,bounced:3,unsubscribed:3,active:1};
 
   while(page<500){
-    const params={limit:100};
-    if(startingAfter)params.starting_after=startingAfter;
-    // Instantly v2 leads list is a POST endpoint
+    const body={limit:100};
+    if(startingAfter)body.starting_after=startingAfter;
     let data=null;
     try{
       const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{
         method:'POST',
         headers:{'X-Instantly-Key':sessionStorage.getItem('inst_key'),'Content-Type':'application/json'},
-        body:JSON.stringify(params)
+        body:JSON.stringify(body)
       });
       if(resp.ok)data=await resp.json();
-      else{
-        // Fallback to GET
-        data=await instFetch('/api/v2/leads',params);
-      }
-    }catch(e){data=await instFetch('/api/v2/leads',params);}
+    }catch(e){console.error('Leads fetch error',e);}
     if(!data||!data.items?.length)break;
 
     data.items.forEach(lead=>{
@@ -1466,17 +1461,14 @@ async function instCheckContact(email,targetEl){
 
 async function instDebug(){
   const st=document.getElementById('inst-sync-st');
-  st.textContent='Testing API...';
+  st.textContent='Testing leads/list...';
   const key=sessionStorage.getItem('inst_key');
   if(!key){st.textContent='No key found';return;}
   try{
-    // Test leads GET
-    const r1=await fetch(`${INST_PROXY}/api/v2/leads?limit=1`,{headers:{'X-Instantly-Key':key}});
-    const t1=`GET leads (${r1.status}): ${(await r1.text()).slice(0,100)}`;
-    // Test leads POST /list
-    const r2=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},body:JSON.stringify({limit:1})});
-    const t2=`POST leads/list (${r2.status}): ${(await r2.text()).slice(0,150)}`;
-    st.textContent=t1+' | '+t2;
+    const r=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},body:JSON.stringify({limit:1})});
+    const data=await r.json();
+    const lead=data.items?.[0];
+    st.textContent=lead?`Lead fields: ${Object.keys(lead).join(', ')} | Sample: email=${lead.email} status=${lead.status} campaign=${lead.campaign_id||lead.campaign} replied=${lead.replied}`:'No leads found';
   }catch(e){st.textContent='Error: '+e.message;}
 }
 
