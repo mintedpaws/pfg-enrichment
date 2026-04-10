@@ -576,6 +576,13 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div class="card-title">Campaign Stats</div>
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
         <button class="btn btn-g btn-sm" onclick="instLoadCampaigns()">Load Campaigns</button>
+        <select id="camp-sort" onchange="sortCampaigns()" style="background:var(--s2);border:1px solid var(--bd);border-radius:5px;padding:5px 10px;color:var(--text);font-size:12px;outline:none;">
+          <option value="name">Sort: Name</option>
+          <option value="active">Sort: Active First</option>
+          <option value="sent">Sort: Most Sent</option>
+          <option value="replies">Sort: Most Replies</option>
+          <option value="bounces">Sort: Most Bounces</option>
+        </select>
         <span id="inst-camp-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
       </div>
       <div id="inst-camp-list"><div class="empty">Click Load to pull live campaign stats from Instantly.</div></div>
@@ -914,24 +921,40 @@ async function instFetch(path,params={}){
   }catch(e){toast('Instantly API: '+e.message,'err');return null;}
 }
 
+let instCampData=[];
+let instAnalyticsMap={};
+
 async function instLoadCampaigns(){
   const st=document.getElementById('inst-camp-st');
   st.textContent='Loading...';
   const data=await instFetch('/api/v2/campaigns',{limit:100});
   if(!data){st.textContent='';return;}
-  const camps=data.items||data||[];
-  st.textContent=`${camps.length} campaigns`;
+  instCampData=data.items||data||[];
+  st.textContent=`${instCampData.length} campaigns`;
   const el=document.getElementById('inst-camp-list');
-  if(!camps.length){el.innerHTML='<div class="empty">No campaigns found.</div>';return;}
-  // Load all campaigns' analytics in one call
+  if(!instCampData.length){el.innerHTML='<div class="empty">No campaigns found.</div>';return;}
   const analyticsData=await instFetch('/api/v2/campaigns/analytics',{exclude_total_leads_count:true});
-  const analyticsMap={};
+  instAnalyticsMap={};
   if(analyticsData){
     const items=Array.isArray(analyticsData)?analyticsData:(analyticsData.items||[]);
-    items.forEach(a=>{if(a.campaign_id)analyticsMap[a.campaign_id]=a;});
+    items.forEach(a=>{if(a.campaign_id)instAnalyticsMap[a.campaign_id]=a;});
   }
+  renderCampList();
+}
+
+function sortCampaigns(){renderCampList();}
+
+function renderCampList(){
+  const sort=document.getElementById('camp-sort')?.value||'name';
+  let camps=[...instCampData];
+  if(sort==='active')camps.sort((a,b)=>(b.status===1?1:0)-(a.status===1?1:0));
+  else if(sort==='sent')camps.sort((a,b)=>(instAnalyticsMap[b.id]?.emails_sent_count||0)-(instAnalyticsMap[a.id]?.emails_sent_count||0));
+  else if(sort==='replies')camps.sort((a,b)=>(instAnalyticsMap[b.id]?.reply_count||0)-(instAnalyticsMap[a.id]?.reply_count||0));
+  else if(sort==='bounces')camps.sort((a,b)=>(instAnalyticsMap[b.id]?.bounced_count||0)-(instAnalyticsMap[a.id]?.bounced_count||0));
+  else camps.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  const el=document.getElementById('inst-camp-list');
   el.innerHTML=camps.map(c=>{
-    const s=analyticsMap[c.id]||{};
+    const s=instAnalyticsMap[c.id]||{};
     const sent=s.emails_sent_count||0;
     const opens=s.open_count||0;
     const replies=s.reply_count||0;
@@ -995,6 +1018,7 @@ async function instLoadInboxes(){
   }catch(e){console.log('Warmup fetch failed',e);}
 
   const today=new Date().toISOString().slice(0,10);
+  const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
   const el=document.getElementById('inst-inbox-grid');
 
   el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
@@ -1002,21 +1026,24 @@ async function instLoadInboxes(){
       const email=inbox.email||'';
       const statusLabel=inbox.status===1?'active':inbox.status===2?'paused':inbox.status===0?'pending':'unknown';
       const statusColor=inbox.status===1?'var(--green)':inbox.status===2?'var(--yellow)':'var(--muted)';
-      // Daily limit from account
-      const dailyLimit=inbox.daily_limit||inbox.sending_limit||20;
-      // Warmup today data
-      const wToday=warmupMap[email]?.[today]||{};
-      const warmupSent=wToday.sent||0;
-      const warmupInbox=wToday.landed_inbox||0;
-      const warmupSpam=wToday.landed_spam||0;
+      const dailyLimit=inbox.daily_limit||inbox.sending_limit||inbox.warmup?.limit||20;
+      // Find most recent warmup data — try today, yesterday, then latest available date
+      const wData=warmupMap[email]||{};
+      const wToday=wData[today]||wData[yesterday]||null;
+      const latestDate=wToday?null:Object.keys(wData).sort().reverse()[0];
+      const w=wToday||(latestDate?wData[latestDate]:null);
+      const warmupSent=w?.sent||0;
+      const warmupInbox=w?.landed_inbox||0;
+      const warmupSpam=w?.landed_spam||0;
       const inboxPct=warmupSent>0?Math.round(warmupInbox/warmupSent*100):0;
+      const dateLabel=wData[today]?'today':wData[yesterday]?'yesterday':latestDate?latestDate:'—';
       return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:10px">
         <div style="font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)" title="${esc(email)}">${esc(email)}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-          <span style="font-size:10px;color:${statusColor}">${statusLabel}</span>
-          <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">limit: ${dailyLimit}/day</span>
+          <span style="font-size:10px;color:${statusColor}">⬤ ${statusLabel}</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">${dailyLimit}/day</span>
         </div>
-        ${warmupSent>0?`<div style="font-size:10px;color:var(--muted);margin-bottom:4px">Warmup: ${warmupInbox}📬 ${warmupSpam}🚫 / ${warmupSent} (${inboxPct}% inbox)</div>`:'<div style="font-size:10px;color:var(--muted2);margin-bottom:4px">No warmup data today</div>'}
+        ${w?`<div style="font-size:10px;color:var(--muted)">${dateLabel}: <span style="color:var(--green)">${warmupInbox}📬</span> <span style="color:var(--red)">${warmupSpam}🚫</span> / ${warmupSent} (${inboxPct}%)</div>`:`<div style="font-size:10px;color:var(--muted2)">No warmup data</div>`}
       </div>`;
     }).join('')}
   </div>`;
