@@ -589,9 +589,16 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     </div>
     <div class="card">
       <div class="card-title">Inbox Health</div>
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
         <button class="btn btn-g btn-sm" onclick="instLoadInboxes()">Load Inboxes</button>
         <button class="btn btn-g btn-sm" id="btn-check-assign" onclick="instCheckAssignments()" style="display:none">📋 Check Assignments</button>
+        <select id="inbox-sort" onchange="sortInboxCards()" style="background:var(--s2);border:1px solid var(--bd);border-radius:5px;padding:5px 10px;color:var(--text);font-size:12px;outline:none;display:none">
+          <option value="free-first">Sort: Free First</option>
+          <option value="assigned-first">Sort: Assigned First</option>
+          <option value="most-campaigns">Sort: Most Campaigns</option>
+          <option value="domain">Sort: Domain</option>
+          <option value="limit">Sort: Daily Limit ↓</option>
+        </select>
         <span id="inst-inbox-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
       </div>
       <div id="inst-inbox-grid"><div class="empty">Click Load to pull inbox health from Instantly.</div></div>
@@ -1055,7 +1062,7 @@ async function instLoadInboxes(){
         ?'<div style="font-size:10px;color:var(--green);font-weight:600">\u2713 Available</div>'
         :'<div style="font-size:10px;color:var(--yellow)">'+campaigns.length+' campaign'+(campaigns.length>1?'s':'')+'</div><div style="font-size:9px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(campaigns[0])+(campaigns.length>1?' +'+(campaigns.length-1):'')+'</div>';
       var warmupHtml=w?'<div style="font-size:9px;color:var(--muted);margin-top:3px">'+warmupInboxC+'\ud83d\udce4 '+warmupSpam+'\ud83d\udeab / '+warmupSent+'</div>':'';
-      return '<div class="inbox-card" data-free="'+isFree+'" data-email="'+esc(email)+'" style="background:var(--s2);border:1px solid '+border+';border-radius:7px;padding:10px">'
+      return '<div class="inbox-card" data-free="'+isFree+'" data-email="'+esc(email)+'" data-limit="'+dailyLimit+'" style="background:var(--s2);border:1px solid '+border+';border-radius:7px;padding:10px">'
         +'<div style="font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)" title="'+esc(email)+'">'+esc(email)+'</div>'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
         +'<span style="font-size:10px;color:'+statusColor+'">\u2b24 '+statusLabel+'</span>'
@@ -1121,7 +1128,36 @@ async function instCheckAssignments(){
   if(assignedLabel)assignedLabel.innerHTML=`<input type="radio" name="inbox-filter" value="assigned" onchange="filterInboxes()" style="width:auto"/> 📢 Assigned (${assignedCount})`;
   st.textContent=`${emails.length} inboxes · ${assignedCount} assigned · ${freeCount} free`;
   btn.disabled=false;btn.textContent='📋 Refresh Assignments';
+  document.getElementById('inbox-sort').style.display='';
   toast('Assignments loaded','ok');
+}
+
+function sortInboxCards(){
+  const sort=document.getElementById('inbox-sort').value;
+  const grid=document.getElementById('inbox-cards');
+  if(!grid)return;
+  const cards=[...grid.querySelectorAll('.inbox-card')];
+  cards.sort((a,b)=>{
+    const aFree=a.dataset.free==='true';
+    const bFree=b.dataset.free==='true';
+    const aEmail=a.dataset.email||'';
+    const bEmail=b.dataset.email||'';
+    const aCamps=(instAssignmentMap[aEmail]||[]).length;
+    const bCamps=(instAssignmentMap[bEmail]||[]).length;
+    const aLimit=parseInt(a.querySelector('[data-limit]')?.dataset.limit||'20');
+    const bLimit=parseInt(b.querySelector('[data-limit]')?.dataset.limit||'20');
+    if(sort==='free-first') return (aFree===bFree)?aEmail.localeCompare(bEmail):(aFree?-1:1);
+    if(sort==='assigned-first') return (aFree===bFree)?aEmail.localeCompare(bEmail):(aFree?1:-1);
+    if(sort==='most-campaigns') return bCamps-aCamps||aEmail.localeCompare(bEmail);
+    if(sort==='domain'){
+      const ad=aEmail.split('@')[1]||aEmail;
+      const bd=bEmail.split('@')[1]||bEmail;
+      return ad.localeCompare(bd)||aEmail.localeCompare(bEmail);
+    }
+    if(sort==='limit') return bLimit-aLimit;
+    return 0;
+  });
+  cards.forEach(c=>grid.appendChild(c));
 }
 
 async function instBulkSyncContacts(){
