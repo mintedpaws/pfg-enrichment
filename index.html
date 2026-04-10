@@ -344,6 +344,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <select id="br-status" onchange="filterBrowse()"><option value="">All Status</option><option value="done">Done</option><option value="needs_review">Needs Review</option><option value="pending">Pending</option><option value="error">Error</option></select>
       <select id="br-state" onchange="filterBrowse()"><option value="">All States</option></select>
       <select id="br-inst" onchange="filterBrowse()"><option value="">All Instantly</option><option value="none">Never Contacted</option><option value="active">Active in Campaign</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option></select>
+      <select id="br-ct" onchange="filterBrowse()"><option value="">All Contacts</option><option value="none">❌ No Contact</option><option value="generic">⚠ Generic Only</option><option value="direct">👤 Has Direct</option></select>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap"><input type="checkbox" id="br-noweb" onchange="filterBrowse()" style="width:auto"/> No website</label>
     </div>
     <div id="br-count" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px"></div>
@@ -2045,8 +2046,21 @@ async function deleteCompany(id){if(!confirm('Delete this company permanently?')
 ══════════════════════════════════════════ */
 async function loadBrowse(){
   if(!sbClient)return;
-  const{data}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count').order('name').limit(3000);
-  allBrowse=data||[];selectedRows.clear();updateBulkBar();filterBrowse();
+  const[{data},{data:ctCounts}]=await Promise.all([
+    sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count').order('name').limit(3000),
+    sbClient.from('contacts').select('company_id,email').not('company_id','is',null)
+  ]);
+  // Build contact count map per company
+  const ctMap={}; // company_id → {total, direct, generic}
+  (ctCounts||[]).forEach(ct=>{
+    if(!ctMap[ct.company_id])ctMap[ct.company_id]={total:0,direct:0,generic:0};
+    ctMap[ct.company_id].total++;
+    if(isGenericEmail(ct.email||''))ctMap[ct.company_id].generic++;
+    else ctMap[ct.company_id].direct++;
+  });
+  // Merge contact counts into company records
+  allBrowse=(data||[]).map(r=>({...r,_ctStats:ctMap[r.id]||null}));
+  selectedRows.clear();updateBulkBar();filterBrowse();
 }
 function filterBrowse(){
   const q=(document.getElementById('br-search').value||'').toLowerCase();
@@ -2063,6 +2077,18 @@ function filterBrowse(){
   if(nw)rows=rows.filter(r=>!r.website);
   if(instF==='none')rows=rows.filter(r=>!r.inst_status);
   else if(instF)rows=rows.filter(r=>r.inst_status===instF);
+  const ctF=document.getElementById('br-ct')?.value||'';
+  if(ctF){rows=rows.filter(r=>{
+    const lsEmail=r.contact_email||'';
+    const lsDirect=lsEmail&&!isGenericEmail(lsEmail);
+    const cts=r._ctStats;
+    const totalC=(cts?.total||0)+(lsEmail?1:0);
+    const directC=(cts?.direct||0)+(lsDirect?1:0);
+    if(ctF==='none')return totalC===0;
+    if(ctF==='generic')return totalC>0&&directC===0;
+    if(ctF==='direct')return directC>0;
+    return true;
+  });}
   rows=[...rows].sort((a,b)=>{
     if(browseSort.col==='_score'){
       const sa=calcScore(a),sb=calcScore(b);
@@ -2088,6 +2114,23 @@ function filterBrowse(){
     const tagBadges=(r.tags||'').split(',').filter(Boolean).map(t=>
       `<span style="font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;background:${t==='enterprise'?'rgba(59,130,246,.15)':t==='government'?'rgba(234,179,8,.15)':'var(--s3)'};color:${t==='enterprise'?'var(--blue)':t==='government'?'var(--yellow)':'var(--muted)'}">${t}</span>`
     ).join(' ');
+
+    // Contact badge logic
+    const cts=r._ctStats;
+    const lsEmail=r.contact_email||'';
+    const lsGeneric=lsEmail&&isGenericEmail(lsEmail);
+    const lsDirect=lsEmail&&!lsGeneric;
+    const totalContacts=(cts?.total||0)+(lsEmail?1:0);
+    const directContacts=(cts?.direct||0)+(lsDirect?1:0);
+    let ctBadge;
+    if(totalContacts===0){
+      ctBadge='<span style="color:var(--red);font-size:11px" title="No contact email found">❌ No contact</span>';
+    } else if(directContacts===0){
+      ctBadge=`<span style="color:var(--yellow);font-size:11px" title="Only generic emails (info@, contact@, etc.)">⚠️ Generic</span><span style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-left:3px">${totalContacts}</span>`;
+    } else {
+      ctBadge=`<span style="color:var(--blue);font-size:11px" title="${directContacts} direct contact${directContacts>1?'s':''}">👤</span><span style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);margin-left:3px">${totalContacts}</span>`;
+    }
+
     html+=`<tr class="${sel?'selected':''}" id="brow-${r.id}">
       <td><input type="checkbox" ${sel?'checked':''} onclick="toggleRowSelect('${r.id}',this)" style="width:auto"/></td>
       <td class="cn clickable" onclick="openDrawer('${r.id}')">${esc(r.name)}</td>
@@ -2098,7 +2141,7 @@ function filterBrowse(){
       <td><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${tier.color}">${tier.emoji} ${tier.tier}</span><span style="font-family:var(--mono);font-size:10px;color:var(--muted)"> ${sc}</span></td>
       <td>${tagBadges||'—'}</td>
       <td>${r.inst_status?`<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:3px;background:${r.inst_status==='replied'?'rgba(16,185,129,.15)':r.inst_status==='active'?'rgba(234,179,8,.15)':'rgba(239,68,68,.15)'};color:${r.inst_status==='replied'?'var(--green)':r.inst_status==='active'?'var(--yellow)':'var(--red)'}">${r.inst_status}</span>${r.inst_contacted_count>0?`<span style="font-size:9px;color:var(--muted);margin-left:3px">${r.inst_contacted_count}x</span>`:''}`:'—'}</td>
-      <td class="mn">${esc([r.contact_first_name,r.contact_last_name].filter(Boolean).join(' ')||r.contact_email||'—')}</td>
+      <td>${ctBadge}</td>
       <td>${statusBadge(r.status)}</td>
       <td><button class="btn btn-r btn-sm" onclick="deleteBrowse('${r.id}',this)">🗑</button></td>
     </tr>`;
@@ -2202,34 +2245,71 @@ async function openDrawer(id){
   if(co.description)html+=`<div class="dr-field"><div class="dl">Description</div><div class="dv" style="font-size:12px;line-height:1.6">${esc(co.description)}</div></div>`;
   html+='</div>';
 
-  // Leadscraper contact
+  // ── CONTACTS SECTION ──
+  // Build unified numbered list: leadscraper contact first, then Clay contacts
+  const allContacts=[];
   if(co.contact_email||co.contact_first_name){
-    html+=`<div class="dr-section"><h4>Leadscraper Contact</h4>
-      <div class="contact-item">
-        ${(co.contact_first_name||co.contact_last_name)?`<div class="cn">${esc([co.contact_first_name,co.contact_last_name].filter(Boolean).join(' '))}</div>`:''}
-        ${co.contact_role?`<div class="ct">${esc(co.contact_role)}</div>`:''}
-        ${co.contact_email?`<div class="ce">${esc(co.contact_email)}</div>
-        <div id="inst-ls-check" style="margin-top:5px"><button class="btn btn-g btn-sm" style="font-size:10px;padding:3px 8px" onclick="instCheckContact('${esc(co.contact_email)}',document.getElementById('inst-ls-check'))">🔍 Check Instantly</button></div>`:''}
-      </div>
-    </div>`;
+    allContacts.push({
+      source:'leadscraper',
+      first_name:co.contact_first_name||'',
+      last_name:co.contact_last_name||'',
+      title:co.contact_role||'',
+      email:co.contact_email||''
+    });
+  }
+  if(contacts&&contacts.length){
+    contacts.forEach(c=>allContacts.push({...c,source:'clay'}));
   }
 
-  // Clay contacts
-  if(contacts&&contacts.length){
-    html+=`<div class="dr-section"><h4>Clay Contacts (${contacts.length})</h4>`;
-    contacts.forEach(c=>{
-      html+=`<div class="contact-item">
-        ${(c.first_name||c.last_name)?`<div class="cn">${esc([c.first_name,c.last_name].filter(Boolean).join(' '))}</div>`:''}
-        ${c.title?`<div class="ct">${esc(c.title)}</div>`:''}
-        ${c.email?`<div class="ce">${esc(c.email)}</div><div id="inst-check-${c.id}" style="margin-top:4px"><button class="btn btn-g btn-sm" style="font-size:10px;padding:3px 8px" onclick="instCheckContact('${esc(c.email)}',document.getElementById('inst-check-${c.id}'))">Check Instantly</button></div>`:''}
-        ${c.campaigns?.name?`<div style="font-size:10px;color:var(--accent);margin-top:4px;font-family:var(--mono)">📢 ${esc(c.campaigns.name)}</div>`:''}
-        ${c.suppressed?`<div style="font-size:10px;color:var(--red);margin-top:2px">⛔ Suppressed${c.suppressed_reason?' · '+c.suppressed_reason:''}</div>`:''}
+  const totalC=allContacts.length;
+  const directC=allContacts.filter(c=>c.email&&!isGenericEmail(c.email)).length;
+  const genericC=allContacts.filter(c=>c.email&&isGenericEmail(c.email)).length;
+
+  // Header with count + quality flag
+  let ctHeaderFlag='';
+  if(totalC===0){
+    ctHeaderFlag='<span style="background:rgba(239,68,68,.15);color:var(--red);font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:3px;margin-left:8px">❌ NO CONTACTS</span>';
+  } else if(directC===0){
+    ctHeaderFlag='<span style="background:rgba(234,179,8,.15);color:var(--yellow);font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:3px;margin-left:8px">⚠ GENERIC ONLY</span>';
+  } else {
+    ctHeaderFlag=`<span style="background:rgba(59,130,246,.15);color:var(--blue);font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:3px;margin-left:8px">👤 ${directC} DIRECT</span>`;
+  }
+
+  html+=`<div class="dr-section">
+    <h4 style="display:flex;align-items:center">Contacts (${totalC})${ctHeaderFlag}</h4>`;
+
+  if(totalC===0){
+    html+=`<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:7px;padding:12px;font-size:12px;color:var(--red)">No contact emails found — add to Clay research list.</div>`;
+  } else {
+    allContacts.forEach((c,i)=>{
+      const isGeneric=c.email&&isGenericEmail(c.email);
+      const instStatus=c.instantly_status;
+      const instColor=instStatus==='replied'?'var(--green)':instStatus==='active'?'var(--yellow)':instStatus==='bounced'||instStatus==='unsubscribed'?'var(--red)':'var(--muted)';
+      const qualityBadge=!c.email
+        ?'<span style="font-size:9px;color:var(--red)">no email</span>'
+        :isGeneric
+        ?'<span style="font-size:9px;color:var(--yellow)">⚠ generic</span>'
+        :'<span style="font-size:9px;color:var(--green)">✓ direct</span>';
+      const sourceBadge=c.source==='leadscraper'
+        ?'<span style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-left:5px">leadscraper</span>'
+        :'<span style="font-size:9px;color:var(--purple);font-family:var(--mono);margin-left:5px">clay</span>';
+      html+=`<div style="background:var(--s2);border:1px solid ${isGeneric?'rgba(234,179,8,.2)':!c.email?'rgba(239,68,68,.2)':'var(--bd)'};border-radius:7px;padding:11px 13px;margin-bottom:7px;display:flex;gap:10px;align-items:flex-start">
+        <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted);min-width:18px;margin-top:1px">${i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
+            ${(c.first_name||c.last_name)?`<span style="font-weight:600;font-size:13px">${esc([c.first_name,c.last_name].filter(Boolean).join(' '))}</span>`:''}
+            ${c.title?`<span style="font-size:11px;color:var(--muted)">${esc(c.title)}</span>`:''}
+            ${qualityBadge}${sourceBadge}
+          </div>
+          ${c.email?`<div style="font-family:var(--mono);font-size:11px;color:var(--purple);margin-bottom:4px">${esc(c.email)}</div>`:''}
+          ${instStatus?`<div style="font-size:10px;color:${instColor};font-family:var(--mono)">📧 ${instStatus}${c.instantly_campaign?' · '+esc(c.instantly_campaign):''}</div>`:''}
+          ${c.suppressed?`<div style="font-size:10px;color:var(--red)">⛔ Suppressed · ${esc(c.suppressed_reason||'')}</div>`:''}
+          ${c.email?`<div id="ict-${i}" style="margin-top:5px"><button class="btn btn-g btn-sm" style="font-size:10px;padding:2px 8px" onclick="instCheckContact('${esc(c.email)}',document.getElementById('ict-${i}'))">🔍 Check Instantly</button></div>`:''}
+        </div>
       </div>`;
     });
-    html+='</div>';
-  } else if(!co.contact_email) {
-    html+=`<div class="dr-section"><h4>Contacts</h4><div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:12px;font-size:12px;color:var(--red)">⚠ No contacts found — this company needs Clay research.</div></div>`;
   }
+  html+='</div>';
 
   document.getElementById('dr-body').innerHTML=html;
 }
