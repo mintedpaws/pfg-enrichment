@@ -8,12 +8,12 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 :root{
-  --bg:#0a0e1a;--s1:#0f1729;--s2:#141e35;--s3:#1a2540;--s4:#1f2d4d;
-  --bd:#1e2d4a;--bd2:#2a3d5e;
-  --text:#e2e8f0;--muted:#64748b;--muted2:#1e2d4a;
+  --bg:#0d0d1f;--s1:#111128;--s2:#16163a;--s3:#1c1c42;--s4:#222250;
+  --bd:#2a2a5a;--bd2:#3a3a6e;
+  --text:#e2e8f0;--muted:#6b7280;--muted2:#2a2a5a;
   --accent:#7c3aed;--blue:#3b82f6;--green:#10b981;
   --yellow:#f59e0b;--red:#ef4444;--cyan:#06b6d4;--purple:#8b5cf6;
-  --accent2:#6d28d9;--glow:rgba(124,58,237,.25);
+  --accent2:#6d28d9;--glow:rgba(124,58,237,.3);
   --mono:'JetBrains Mono',monospace;--sans:'DM Sans',sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -1134,11 +1134,21 @@ async function toggleCampExpand(campId, campName){
   expand.style.display=isOpen?'none':'block';
   chevron.textContent=isOpen?'▼':'▲';
   if(!isOpen&&accountsEl.textContent==='Loading...'){
-    // Fetch account-campaign mappings
-    const data=await instFetch('/api/v2/account-campaign-mappings',{campaign_id:campId,limit:100});
+    // Try fetching accounts filtered by campaign_id
+    const data=await instFetch('/api/v2/accounts',{campaign_id:campId,limit:100});
     const items=data?.items||[];
-    if(!items.length){accountsEl.innerHTML='<span style="color:var(--muted);font-size:11px">No accounts assigned</span>';return;}
-    accountsEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">${items.map(m=>`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:var(--s2);border:1px solid var(--bd);color:var(--text)">${esc(m.email||m.account||'—')}</span>`).join('')}</div>`;
+    if(!items.length){
+      // Fallback: check if campaign object has accounts in it
+      const campData=await instFetch(`/api/v2/campaigns/${campId}`);
+      const accounts=campData?.email_accounts||campData?.accounts||campData?.sending_accounts||[];
+      if(accounts.length){
+        accountsEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">${accounts.map(a=>`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:var(--s2);border:1px solid var(--bd);color:var(--text)">${esc(typeof a==='string'?a:a.email||a.address||JSON.stringify(a))}</span>`).join('')}</div>`;
+      } else {
+        accountsEl.innerHTML='<span style="color:var(--muted);font-size:11px">Could not load accounts — check API scope includes account_campaign_mappings:read</span>';
+      }
+      return;
+    }
+    accountsEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">${items.map(m=>`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:var(--s2);border:1px solid var(--bd);color:var(--text)">${esc(m.email||m.address||'—')}</span>`).join('')}</div>`;
   }
 }
 
