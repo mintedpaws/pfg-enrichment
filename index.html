@@ -1185,8 +1185,10 @@ async function instSyncCompanies(){
   st.textContent=`✓ ${matched} companies matched to Instantly leads`;
   toast(`${matched} companies synced`,'ok');
 }
+
+async function instSyncSuppression(){
   const st=document.getElementById('inst-sync-st');
-  // Pull all contacts with terminal statuses
+  st.textContent='Fetching from Instantly...';
   let allLeads=[],startingAfter=null,page=0;
   const statuses=['bounced','unsubscribed','opted_out'];
   for(const status of statuses){
