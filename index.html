@@ -552,6 +552,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
         <button class="btn btn-g btn-sm" onclick="instDebug()">Debug API</button>
       </div>
       <div id="inst-sync-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></div>
+      <div id="inst-last-sync" style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:4px"></div>
       <div id="inst-sync-progress" style="display:none;margin-top:10px">
         <div class="pg-meta"><span id="inst-pg-lbl">Starting...</span><span id="inst-pg-pct">0%</span></div>
         <div class="pg-track"><div class="pg-fill" id="inst-pg-fill" style="width:0%"></div></div>
@@ -812,6 +813,8 @@ async function onSignedIn(user){
   document.getElementById('cdot').className='ok';
   showScreen('app');
   setupNav();
+  const lastSync=localStorage.getItem('inst_last_sync');
+  if(lastSync){const el=document.getElementById('inst-last-sync');if(el)el.textContent=`Last synced: ${lastSync}`;}
   setupDrop('co-uz','co-file', handleCoFiles);
   setupDrop('ct-uz','ct-file',(t,n)=>{document.getElementById('ct-paste').value=t;document.getElementById('ct-src').value=n;});
   loadDash();
@@ -955,7 +958,6 @@ async function instLoadCampaigns(){
 async function instLoadInboxes(){
   const st=document.getElementById('inst-inbox-st');
   st.textContent='Loading...';
-  // Get all accounts
   let allInboxes=[],startingAfter=null;
   for(let i=0;i<10;i++){
     const params={limit:100};if(startingAfter)params.starting_after=startingAfter;
@@ -966,51 +968,43 @@ async function instLoadInboxes(){
     startingAfter=data.next_starting_after;
   }
   if(!allInboxes.length){st.textContent='No inboxes found.';document.getElementById('inst-inbox-grid').innerHTML='<div class="empty">No inboxes found.</div>';return;}
-  st.textContent=`${allInboxes.length} inboxes — loading warmup...`;
+  st.textContent=`${allInboxes.length} inboxes`;
 
-  // Get warmup analytics via POST
+  // Get warmup data for all inboxes via POST
   const emails=allInboxes.map(a=>a.email).filter(Boolean);
   let warmupMap={};
   try{
     const wResp=await fetch(`${INST_PROXY}/api/v2/accounts/warmup-analytics`,{
-      method:'POST',headers:{'X-Instantly-Key':sessionStorage.getItem('inst_key'),'Content-Type':'application/json'},
+      method:'POST',
+      headers:{'X-Instantly-Key':sessionStorage.getItem('inst_key'),'Content-Type':'application/json'},
       body:JSON.stringify({emails})
     });
     if(wResp.ok)warmupMap=await wResp.json();
-  }catch(e){}
+  }catch(e){console.log('Warmup fetch failed',e);}
 
-  // Get daily send analytics
   const today=new Date().toISOString().slice(0,10);
-  let dailyMap={};
-  try{
-    const dResp=await instFetch('/api/v2/accounts/analytics/daily',{start_date:today,end_date:today,limit:200});
-    if(dResp){const items=dResp.items||[];items.forEach(d=>{if(d.email)dailyMap[d.email]=d;});}
-  }catch(e){}
-
-  st.textContent=`${allInboxes.length} inboxes`;
   const el=document.getElementById('inst-inbox-grid');
-  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
+
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
     ${allInboxes.map(inbox=>{
       const email=inbox.email||'';
-      const warmup=warmupMap[email];
-      const daily=dailyMap[email];
-      const sentToday=daily?.sent||0;
-      const dailyLimit=inbox.daily_limit||inbox.sending_limit||20;
-      const pct=dailyLimit>0?Math.round(sentToday/dailyLimit*100):0;
-      // Warmup: get today's data
-      const todayWarmup=warmup?.[today];
-      const warmupSent=todayWarmup?.sent||0;
-      const warmupInbox=todayWarmup?.landed_inbox||0;
+      const statusLabel=inbox.status===1?'active':inbox.status===2?'paused':inbox.status===0?'pending':'unknown';
       const statusColor=inbox.status===1?'var(--green)':inbox.status===2?'var(--yellow)':'var(--muted)';
-      const statusLabel=inbox.status===1?'active':inbox.status===2?'paused':inbox.status===0?'pending':'—';
-      return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:12px">
-        <div style="font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)" title="${esc(email)}">${esc(email)}</div>
-        <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:5px">
-          <span style="color:${statusColor}">${statusLabel}</span>
-          ${warmupInbox>0?`<span style="color:var(--muted)">📬 ${warmupInbox}/${warmupSent}</span>`:''}
+      // Daily limit from account
+      const dailyLimit=inbox.daily_limit||inbox.sending_limit||20;
+      // Warmup today data
+      const wToday=warmupMap[email]?.[today]||{};
+      const warmupSent=wToday.sent||0;
+      const warmupInbox=wToday.landed_inbox||0;
+      const warmupSpam=wToday.landed_spam||0;
+      const inboxPct=warmupSent>0?Math.round(warmupInbox/warmupSent*100):0;
+      return`<div style="background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:10px">
+        <div style="font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)" title="${esc(email)}">${esc(email)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span style="font-size:10px;color:${statusColor}">${statusLabel}</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">limit: ${dailyLimit}/day</span>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">${sentToday}/${dailyLimit} sent today</div>
-        <div style="height:3px;background:var(--s4);border-radius:2px"><div style="height:100%;width:${Math.min(pct,100)}%;background:${pct>80?'var(--red)':pct>50?'var(--yellow)':'var(--green)'};border-radius:2px"></div></div>
+        ${warmupSent>0?`<div style="font-size:10px;color:var(--muted);margin-bottom:4px">Warmup: ${warmupInbox}📬 ${warmupSpam}🚫 / ${warmupSent} (${inboxPct}% inbox)</div>`:'<div style="font-size:10px;color:var(--muted2);margin-bottom:4px">No warmup data today</div>'}
       </div>`;
     }).join('')}
   </div>`;
@@ -1100,7 +1094,12 @@ async function instBulkSyncContacts(){
   await loadInstantlyStatusStats();
   prog.style.display='none';
   const msg=`✓ Sync complete — ${matched.toLocaleString()} contacts matched to Instantly (${total.toLocaleString()} total Instantly leads)`;
-  st.textContent=msg;toast('Sync complete','ok');
+  st.textContent=msg;
+  // Save last synced time
+  const syncTime=new Date().toLocaleString();
+  localStorage.setItem('inst_last_sync',syncTime);
+  document.getElementById('inst-last-sync').textContent=`Last synced: ${syncTime}`;
+  toast('Sync complete','ok');
 }
 
 async function loadInstantlyStatusStats(){
