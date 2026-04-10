@@ -1004,16 +1004,19 @@ async function instLoadInboxes(){
   }
   if(!allInboxes.length){st.textContent='No inboxes found.';document.getElementById('inst-inbox-grid').innerHTML='<div class="empty">No inboxes found.</div>';return;}
   st.textContent=`${allInboxes.length} inboxes — loading assignments...`;
-  // Build assignment map from already-loaded campaign data
+  // Correct approach: query each inbox's campaign assignments
   const assignmentMap={};
-  if(instCampData.length){
-    const campDetails=await Promise.all(instCampData.map(c=>instFetch('/api/v2/campaigns/'+c.id).catch(()=>null)));
-    campDetails.forEach((camp,i)=>{
-      if(!camp)return;
-      const campName=instCampData[i].name||'Unknown';
-      const accts=camp.email_accounts||camp.accounts||camp.sending_accounts||camp.eaccounts||[];
-      accts.forEach(a=>{const email=typeof a==='string'?a:(a.email||a.address||'');if(!email)return;if(!assignmentMap[email])assignmentMap[email]=[];assignmentMap[email].push(campName);});
-    });
+  const batchSize=10;
+  for(let i=0;i<emails.length;i+=batchSize){
+    const batch=emails.slice(i,i+batchSize);
+    await Promise.all(batch.map(async email=>{
+      const data=await instFetch('/api/v2/account-campaign-mappings/'+encodeURIComponent(email),{limit:50});
+      const items=data?.items||[];
+      if(items.length>0){
+        assignmentMap[email]=items.map(m=>m.campaign_name||m.campaign_id||'Unknown');
+      }
+    }));
+    st.textContent=`${allInboxes.length} inboxes — checking assignments ${Math.min(i+batchSize,emails.length)}/${emails.length}...`;
   }
   st.textContent=`${allInboxes.length} inboxes — loading warmup...`;
 
