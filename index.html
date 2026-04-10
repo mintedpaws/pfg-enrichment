@@ -348,7 +348,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap"><input type="checkbox" id="br-noweb" onchange="filterBrowse()" style="width:auto"/> No website</label>
     </div>
     <div id="br-count" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px"></div>
-    <div class="tw" id="br-table"><div class="empty">Click Load to browse companies.</div></div>
+    <div class="tw" id="br-table" style="overflow-x:auto"><div class="empty">Click Load to browse companies.</div></div>
   </div>
 
   <!-- COMPANIES -->
@@ -2102,11 +2102,11 @@ function filterBrowse(){
   if(!rows.length){el.innerHTML='<div class="empty">No companies match.</div>';return;}
   const sa=col=>{if(browseSort.col!==col)return'<span style="color:var(--muted2)"> ⇅</span>';return browseSort.dir==='asc'?' ↑':' ↓';};
   const th=(col,lbl)=>`<th class="sort" onclick="sortBrowse('${col}')">${lbl}${sa(col)}</th>`;
-  let html=`<table><thead><tr>
-    <th><input type="checkbox" id="sel-all" onclick="toggleSelectAll(this)" style="width:auto"/></th>
+  let html=`<table style="min-width:900px"><thead><tr>
+    <th style="width:28px"><input type="checkbox" id="sel-all" onclick="toggleSelectAll(this)" style="width:auto"/></th>
     ${th('name','Company')}${th('website','Website')}${th('state','ST')}
-    <th>Categories</th>${th('vertical','Vertical')}${th('_score','Score')}
-    <th>Tags</th><th>Instantly</th><th>Contact</th>${th('status','Status')}<th></th>
+    ${th('vertical','Vertical')}${th('_score','Score')}
+    <th>Instantly</th><th>Contact</th>${th('status','Status')}<th></th>
   </tr></thead><tbody>`;
   rows.forEach(r=>{
     const sel=selectedRows.has(r.id);
@@ -2132,18 +2132,22 @@ function filterBrowse(){
     }
 
     html+=`<tr class="${sel?'selected':''}" id="brow-${r.id}">
-      <td><input type="checkbox" ${sel?'checked':''} onclick="toggleRowSelect('${r.id}',this)" style="width:auto"/></td>
-      <td class="cn clickable" onclick="openDrawer('${r.id}')">${esc(r.name)}</td>
-      <td class="mn">${r.website?`<a href="https://${esc(r.website)}" target="_blank" style="color:var(--accent);text-decoration:none">${esc(r.website)}</a>`:'<span style="color:var(--red);font-size:10px">no website</span>'}</td>
-      <td class="mn">${esc(r.state||'—')}</td>
-      <td style="font-size:11px;color:var(--muted);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.categories||'')}">${esc((r.categories||'—').slice(0,45))}</td>
-      <td>${r.vertical?vbadge(r.vertical):'—'}</td>
-      <td><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${tier.color}">${tier.emoji} ${tier.tier}</span><span style="font-family:var(--mono);font-size:10px;color:var(--muted)"> ${sc}</span></td>
-      <td>${tagBadges||'—'}</td>
-      <td>${r.inst_status?`<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:3px;background:${r.inst_status==='replied'?'rgba(16,185,129,.15)':r.inst_status==='active'?'rgba(234,179,8,.15)':'rgba(239,68,68,.15)'};color:${r.inst_status==='replied'?'var(--green)':r.inst_status==='active'?'var(--yellow)':'var(--red)'}">${r.inst_status}</span>${r.inst_contacted_count>0?`<span style="font-size:9px;color:var(--muted);margin-left:3px">${r.inst_contacted_count}x</span>`:''}`:'—'}</td>
-      <td>${ctBadge}</td>
-      <td>${statusBadge(r.status)}</td>
-      <td><button class="btn btn-r btn-sm" onclick="deleteBrowse('${r.id}',this)">🗑</button></td>
+      <td style="width:28px"><input type="checkbox" ${sel?'checked':''} onclick="toggleRowSelect('${r.id}',this)" style="width:auto"/></td>
+      <td class="cn clickable" onclick="openDrawer('${r.id}')" style="max-width:160px">
+        ${esc(r.name)}
+        ${tagBadges?`<div style="margin-top:3px">${tagBadges}</div>`:''}
+      </td>
+      <td class="mn" style="max-width:180px">${r.website?`<a href="https://${esc(r.website)}" target="_blank" style="color:var(--purple);text-decoration:none;font-size:10px">${esc(r.website)}</a>`:'<span style="color:var(--red);font-size:10px">no website</span>'}</td>
+      <td class="mn" style="width:32px">${esc(r.state||'—')}</td>
+      <td style="width:120px">${r.vertical?vbadge(r.vertical):'<span style="color:var(--muted);font-size:11px">—</span>'}</td>
+      <td style="width:80px">
+        <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${tier.color}">${tier.emoji} ${tier.tier}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);display:block">${sc}</span>
+      </td>
+      <td style="width:90px">${r.inst_status?`<span style="font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:3px;background:${r.inst_status==='replied'?'rgba(16,185,129,.15)':r.inst_status==='active'?'rgba(234,179,8,.15)':'rgba(239,68,68,.15)'};color:${r.inst_status==='replied'?'var(--green)':r.inst_status==='active'?'var(--yellow)':'var(--red)'}">${r.inst_status}</span>${r.inst_contacted_count>0?`<div style="font-size:9px;color:var(--muted);margin-top:2px">${r.inst_contacted_count}x contacted</div>`:''}`:'<span style="color:var(--muted);font-size:11px">—</span>'}</td>
+      <td style="width:90px">${ctBadge}</td>
+      <td style="width:80px">${statusBadge(r.status)}</td>
+      <td style="width:36px"><button class="btn btn-r btn-sm" onclick="deleteBrowse('${r.id}',this)">🗑</button></td>
     </tr>`;
   });
   el.innerHTML=html+'</tbody></table>';
