@@ -1039,13 +1039,15 @@ async function instBulkSyncContacts(){
     data.items.forEach(lead=>{
       const email=(lead.email||'').toLowerCase().trim();if(!email)return;
       const domain=lead.company_domain||email.split('@')[1]||'';
-      // Instantly v2 lead status codes (run Debug API to verify yours):
-      // 1=Active/InSequence 2=Completed 3=Bounced/Unsubscribed 4=Unsubscribed varies by account version
-      // Replies are most reliable — check reply count first, then is_bounced field, then status codes
+      // Instantly v2 confirmed status codes (from live data debug):
+      // 1=Active(in sequence) 2=Paused 3=Completed(sequence done) 4=Unsubscribed -1=Bounced
+      // status_summary field has human-readable label
       const rawSt=lead.status;
-      const isBounced=lead.is_bounced===true||rawSt===3&&lead.email_reply_count===0&&!lead.timestamp_last_contact;
-      const isUnsub=rawSt===4||(rawSt===3&&!isBounced);
-      const status=(lead.email_reply_count>0)?'replied':isBounced?'bounced':isUnsub?'unsubscribed':'active';
+      const summary=(lead.status_summary||'').toLowerCase();
+      const isBounced=rawSt===-1||summary.includes('bounce');
+      const isUnsub=rawSt===4||summary.includes('unsub')||summary.includes('opt');
+      const isReplied=lead.email_reply_count>0||summary.includes('reply')||summary.includes('replied')||summary.includes('interested');
+      const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':'active';
       const campaign=campIdToName[lead.campaign]||lead.campaign||'';
       const ts=lead.timestamp_last_contact||lead.timestamp_updated||null;
       const ex=emailMap[email];
@@ -1180,16 +1182,21 @@ async function instDebug(){
     const dist={};
     items.forEach(l=>{const s=String(l.status!=null?l.status:'null');dist[s]=(dist[s]||0)+1;});
     const distStr=Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`status=${k}: ${v} leads`).join(' | ');
+    // Also show status_summary distribution
+    const sumDist={};
+    items.forEach(l=>{const s=String(l.status_summary||'null');sumDist[s]=(sumDist[s]||0)+1;});
+    const sumStr=Object.entries(sumDist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`"${k}": ${v}`).join(' | ');
     const lead=items[0];
     const keyList=Object.keys(lead).join(', ');
-    const hasBouncedField=lead.is_bounced!==undefined?'is_bounced='+lead.is_bounced:lead.bounced!==undefined?'bounced='+lead.bounced:'no separate bounce field';
     st.innerHTML=`<div style="font-family:var(--mono);font-size:11px;line-height:1.8;padding:10px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;margin-top:8px">
-      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Status distribution (${items.length} leads sampled):</div>
-      <div style="color:var(--text);margin-bottom:10px">${distStr}</div>
+      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Status codes (${items.length} leads):</div>
+      <div style="color:var(--text);margin-bottom:6px">${distStr}</div>
+      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">status_summary values:</div>
+      <div style="color:var(--green);margin-bottom:10px">${sumStr}</div>
       <div style="color:var(--cyan);font-weight:700;margin-bottom:4px">All lead fields:</div>
       <div style="color:var(--muted);margin-bottom:10px">${keyList}</div>
-      <div style="color:var(--purple);font-weight:700;margin-bottom:4px">First lead raw values:</div>
-      <div style="color:var(--text)">status=${JSON.stringify(lead.status)} · reply_count=${lead.email_reply_count} · ${hasBouncedField}</div>
+      <div style="color:var(--purple);font-weight:700;margin-bottom:4px">First lead:</div>
+      <div style="color:var(--text)">status=${JSON.stringify(lead.status)} · status_summary="${lead.status_summary}" · reply_count=${lead.email_reply_count}</div>
     </div>`;
   }catch(e){st.textContent='Error: '+e.message;}
 }
