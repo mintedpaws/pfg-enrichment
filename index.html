@@ -304,14 +304,15 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
   <div class="tab active" id="tab-dash">
     <!-- DIAGNOSTIC BANNER -->
     <div class="diag-banner" id="diag-banner">
-      <h3>⚠ Infrastructure Issue Detected</h3>
-      <p>You have <strong id="diag-ct-count" style="color:var(--yellow)">0</strong> contacts but <strong style="color:var(--red)">0 companies</strong>. This means Instantly has been synced (pulling leads from your campaigns), but no leadscraper company data has been imported yet. Your contacts are all unmatched — they have no company_id and can't be assigned to campaigns.</p>
+      <h3>⚠ 0 Companies Detected</h3>
+      <p>You have <strong id="diag-ct-count" style="color:var(--yellow)">0</strong> contacts but <strong style="color:var(--red)">0 companies</strong>. The sync now auto-creates company records from Instantly lead data — re-run it and companies will populate immediately from your campaign leads, no CSV import needed first.</p>
       <ol>
-        <li><strong>Go to Companies tab</strong> → Import &amp; Classify section → drop your leadscraper state CSV files</li>
-        <li><strong>Run Classification</strong> to assign verticals</li>
-        <li><strong>Go to Instantly tab</strong> → Re-run "Sync Contacts + Companies" — this will now domain-match your contacts to companies</li>
-        <li><strong>Go to Campaigns tab</strong> → Run Auto-Assign to populate campaigns</li>
+        <li><strong>Go to Instantly tab</strong> → click <strong>"Sync Contacts + Companies"</strong> — creates company records for every domain in your campaigns and matches all contacts to them</li>
+        <li><strong>Run Classification</strong> in the Companies tab to assign verticals</li>
+        <li><strong>Optionally</strong> import leadscraper CSV files later to enrich with revenue, employee count, etc.</li>
+        <li><strong>Go to Campaigns tab</strong> → Run Auto-Assign once verticals are set</li>
       </ol>
+      <div style="margin-top:10px"><button class="btn btn-o btn-sm" onclick="switchTab('instantly')">→ Go to Instantly Tab</button></div>
     </div>
 
     <div class="sh"><h2>// Overview</h2><button class="btn btn-g btn-sm" onclick="loadDash()">↻ Refresh</button></div>
@@ -1038,7 +1039,13 @@ async function instBulkSyncContacts(){
     data.items.forEach(lead=>{
       const email=(lead.email||'').toLowerCase().trim();if(!email)return;
       const domain=lead.company_domain||email.split('@')[1]||'';
-      const status=lead.status===2?'unsubscribed':lead.status===3?'bounced':(lead.email_reply_count>0)?'replied':'active';
+      // Instantly v2 lead status codes (run Debug API to verify yours):
+      // 1=Active/InSequence 2=Completed 3=Bounced/Unsubscribed 4=Unsubscribed varies by account version
+      // Replies are most reliable — check reply count first, then is_bounced field, then status codes
+      const rawSt=lead.status;
+      const isBounced=lead.is_bounced===true||rawSt===3&&lead.email_reply_count===0&&!lead.timestamp_last_contact;
+      const isUnsub=rawSt===4||(rawSt===3&&!isBounced);
+      const status=(lead.email_reply_count>0)?'replied':isBounced?'bounced':isUnsub?'unsubscribed':'active';
       const campaign=campIdToName[lead.campaign]||lead.campaign||'';
       const ts=lead.timestamp_last_contact||lead.timestamp_updated||null;
       const ex=emailMap[email];
@@ -1162,9 +1169,30 @@ async function instCheckContact(email,targetEl){
 }
 
 async function instDebug(){
-  const st=document.getElementById('inst-sync-st');st.textContent='Testing leads/list...';
+  const st=document.getElementById('inst-sync-st');
+  st.textContent='Sampling 50 leads to inspect status codes...';
   const key=sessionStorage.getItem('inst_key');if(!key){st.textContent='No key found';return;}
-  try{const r=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},body:JSON.stringify({limit:1})});const data=await r.json();const lead=data.items?.[0];st.textContent=lead?`Lead fields: ${Object.keys(lead).join(', ')}`:'No leads found';}catch(e){st.textContent='Error: '+e.message;}
+  try{
+    const r=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},body:JSON.stringify({limit:50})});
+    const data=await r.json();
+    const items=data.items||[];
+    if(!items.length){st.textContent='No leads found';return;}
+    const dist={};
+    items.forEach(l=>{const s=String(l.status!=null?l.status:'null');dist[s]=(dist[s]||0)+1;});
+    const distStr=Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`status=${k}: ${v} leads`).join(' | ');
+    const lead=items[0];
+    const keyList=Object.keys(lead).join(', ');
+    const hasBouncedField=lead.is_bounced!==undefined?'is_bounced='+lead.is_bounced:lead.bounced!==undefined?'bounced='+lead.bounced:'no separate bounce field';
+    st.innerHTML=`<div style="font-family:var(--mono);font-size:11px;line-height:1.8;padding:10px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;margin-top:8px">
+      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Status distribution (${items.length} leads sampled):</div>
+      <div style="color:var(--text);margin-bottom:10px">${distStr}</div>
+      <div style="color:var(--cyan);font-weight:700;margin-bottom:4px">All lead fields:</div>
+      <div style="color:var(--muted);margin-bottom:10px">${keyList}</div>
+      <div style="color:var(--purple);font-weight:700;margin-bottom:4px">First lead raw values:</div>
+      <div style="color:var(--text)">status=${JSON.stringify(lead.status)} · reply_count=${lead.email_reply_count} · ${hasBouncedField}</div>
+    </div>`;
+  }catch(e){st.textContent='Error: '+e.message;}
+}
 }
 
 /* ══════════════════════════════════════════
