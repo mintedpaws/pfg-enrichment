@@ -568,6 +568,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
         <button class="btn btn-o" onclick="instBulkSyncContacts()">⟳ Sync Contacts + Companies</button>
         <button class="btn btn-g btn-sm" onclick="instSyncSuppression()">⟳ Sync Suppression Only</button>
         <button class="btn btn-g btn-sm" onclick="instDebug()">Debug API</button>
+        <button class="btn btn-r btn-sm" onclick="resetSyncData()">🗑 Reset Sync Data</button>
       </div>
       <div id="inst-sync-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></div>
       <div id="inst-last-sync" style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:4px"></div>
@@ -1018,6 +1019,33 @@ function sortInboxCards(){
   } else {
     grid.style.display='grid';cards.forEach(c=>{c.style.display='';grid.appendChild(c);});
   }
+}
+
+async function resetSyncData(){
+  if(!sbClient)return;
+  if(!confirm('This will:\n\n• Delete all companies created from Instantly (source_file=instantly)\n• Reset instantly_status on all remaining contacts to null\n• Clear all company inst_* fields\n\nRun Sync Contacts + Companies after to rebuild fresh.\n\nProceed?'))return;
+  const st=document.getElementById('inst-sync-st');
+  st.textContent='Deleting Instantly-sourced companies...';
+  await sbClient.from('companies').delete().eq('source_file','instantly');
+  st.textContent='Resetting contact Instantly status...';
+  // Reset in batches
+  let cleared=0;
+  while(true){
+    const{data}=await sbClient.from('contacts').select('id').not('instantly_status','is',null).limit(500);
+    if(!data||!data.length)break;
+    await sbClient.from('contacts').update({instantly_status:null,instantly_campaign:null,instantly_last_contacted:null,company_id:null,match_status:'unmatched'}).in('id',data.map(r=>r.id));
+    cleared+=data.length;
+    st.textContent=`Cleared ${cleared} contacts...`;
+  }
+  st.textContent='Resetting company inst_* fields...';
+  await sbClient.from('companies').update({inst_status:null,inst_campaign:null,inst_last_contacted:null,inst_contacted_count:0}).not('inst_status','is',null);
+  // Reset stats display
+  ['ist-active','ist-replied','ist-bounced','ist-unsub','ist-none','ist-co-touched'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='—';});
+  localStorage.removeItem('inst_last_sync');
+  document.getElementById('inst-last-sync').textContent='';
+  st.textContent='✓ Reset complete — now run Sync Contacts + Companies with the latest code';
+  toast('Sync data wiped — ready for fresh sync','ok');
+  loadDash();
 }
 
 async function instBulkSyncContacts(){
