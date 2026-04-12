@@ -1091,7 +1091,7 @@ async function instBulkSyncContacts(){
   const uniqueEmails=Object.keys(emailMap).length;
   document.getElementById('inst-pg-lbl').textContent=`${total.toLocaleString()} leads · ${uniqueEmails} unique emails`;
   st.textContent='Loading companies...';
-  const{data:dbCos}=await sbClient.from('companies').select('id,domain');
+  const{data:dbCos}=await sbClient.from('companies').select('id,domain').limit(10000);
   const domainToCompanyId={};(dbCos||[]).forEach(co=>{if(co.domain)domainToCompanyId[co.domain]=co.id;});
 
   // Build domain → best company name from leads (longest non-empty wins)
@@ -1156,7 +1156,7 @@ async function instBulkSyncContacts(){
 
 async function loadInstantlyStatusStats(){
   if(!sbClient)return;
-  const[{data:cts},{data:cos}]=await Promise.all([sbClient.from('contacts').select('instantly_status'),sbClient.from('companies').select('inst_status')]);
+  const[{data:cts},{data:cos}]=await Promise.all([sbClient.from('contacts').select('instantly_status').limit(10000),sbClient.from('companies').select('inst_status').limit(10000)]);
   const counts={active:0,replied:0,bounced:0,unsubscribed:0,none:0};
   (cts||[]).forEach(r=>{const s=r.instantly_status||'none';counts[s]=(counts[s]||0)+1;});
   document.getElementById('ist-active').textContent=counts.active||0;document.getElementById('ist-replied').textContent=counts.replied||0;document.getElementById('ist-bounced').textContent=counts.bounced||0;document.getElementById('ist-unsub').textContent=counts.unsubscribed||0;document.getElementById('ist-none').textContent=counts.none||0;
@@ -1237,7 +1237,7 @@ async function instDebug(){
 ══════════════════════════════════════════ */
 async function loadDash(){
   if(!sbClient)return;
-  const[{data:cos},{data:cts}]=await Promise.all([sbClient.from('companies').select('status,vertical,state'),sbClient.from('contacts').select('match_status,campaign_id,suppressed')]);
+  const[{data:cos},{data:cts}]=await Promise.all([sbClient.from('companies').select('status,vertical,state').limit(10000),sbClient.from('contacts').select('match_status,campaign_id,suppressed').limit(10000)]);
   const co=cos||[],ct=cts||[];
   const c=s=>co.filter(r=>r.status===s).length;
   document.getElementById('st-co').textContent=co.length;
@@ -1351,7 +1351,7 @@ async function importCompanies(){
   const filesToProcess=coParsedFiles.length>0?coParsedFiles:(coParsed?[{parsed:coParsed,filename:'paste'}]:[]);if(!filesToProcess.length){showErr('co-err','No data to import.');return;}
   const excludeNoWeb=document.getElementById('f-nowebsite').checked;const tagEnterprise=document.getElementById('f-enterprise').checked;const tagGovt=document.getElementById('f-govt').checked;const useMinRev=document.getElementById('f-minrev').checked;const minRev=useMinRev?parseRevenue(document.getElementById('f-minrev-val').value):0;
   const st=document.getElementById('co-is');st.textContent='Checking database...';
-  const{data:ex}=await sbClient.from('companies').select('id,domain').not('domain','is',null);
+  const{data:ex}=await sbClient.from('companies').select('id,domain').not('domain','is',null).limit(10000);
   const existDomainToId={};(ex||[]).forEach(r=>{if(r.domain)existDomainToId[r.domain]=r.id;});const existSet=new Set(Object.keys(existDomainToId));
   const toIns=[],batchDomMap=new Map();const extraContacts=[],locationUpdates={};let dbDupes=0,batchDupes=0,qualitySkipped=0,filterSkipped=0;
   for(const{parsed,filename}of filesToProcess){
@@ -1478,8 +1478,8 @@ async function loadBrowse(){
   if(!sbClient)return;
   document.getElementById('br-table').innerHTML='<div class="empty" style="padding:30px"><div class="spin" style="display:inline-block;margin-right:8px"></div> Loading companies...</div>';
   const[{data},{data:ctCounts}]=await Promise.all([
-    sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count').order('name').limit(3000),
-    sbClient.from('contacts').select('company_id,email').not('company_id','is',null)
+    sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count').order('name').limit(10000),
+    sbClient.from('contacts').select('company_id,email').not('company_id','is',null).limit(10000)
   ]);
   const ctMap={};(ctCounts||[]).forEach(ct=>{if(!ctMap[ct.company_id])ctMap[ct.company_id]={total:0,direct:0,generic:0};ctMap[ct.company_id].total++;if(isGenericEmail(ct.email||''))ctMap[ct.company_id].generic++;else ctMap[ct.company_id].direct++;});
   allBrowse=(data||[]).map(r=>({...r,_ctStats:ctMap[r.id]||null}));
@@ -1542,7 +1542,7 @@ function filterBrowse(){
 function sortBrowse(col){if(browseSort.col===col)browseSort.dir=browseSort.dir==='asc'?'desc':'asc';else{browseSort.col=col;browseSort.dir='asc';}filterBrowse();}
 function statusBadge(s){const m={done:['var(--green)','rgba(34,197,94,.1)'],needs_review:['var(--yellow)','rgba(234,179,8,.1)'],pending:['var(--muted)','var(--s3)'],error:['var(--red)','rgba(239,68,68,.1)'],processing:['var(--blue)','rgba(59,130,246,.1)']};const[col,bg]=m[s]||m.pending;return`<span class="sb" style="color:${col};background:${bg}">${s}</span>`;}
 async function deleteBrowse(id,btn){if(!confirm('Delete this company?'))return;await sbClient.from('companies').delete().eq('id',id);btn.closest('tr').remove();allBrowse=allBrowse.filter(r=>r.id!==id);document.getElementById('br-count').textContent=`Showing ${allBrowse.length.toLocaleString()} of ${allBrowse.length.toLocaleString()}`;toast('Deleted','ok');}
-async function deleteNoWebsite(){if(!sbClient)return;const{data}=await sbClient.from('companies').select('id').is('website',null).is('domain',null);if(!data||!data.length){toast('No companies without website','info');return;}if(!confirm(`Delete ${data.length} companies with no website?`))return;const ids=data.map(r=>r.id);for(let i=0;i<ids.length;i+=200)await sbClient.from('companies').delete().in('id',ids.slice(i,i+200));toast(`Deleted ${ids.length}`,'ok');loadBrowse();loadDash();}
+async function deleteNoWebsite(){if(!sbClient)return;const{data}=await sbClient.from('companies').select('id').is('website',null).is('domain',null).limit(10000);if(!data||!data.length){toast('No companies without website','info');return;}if(!confirm(`Delete ${data.length} companies with no website?`))return;const ids=data.map(r=>r.id);for(let i=0;i<ids.length;i+=200)await sbClient.from('companies').delete().in('id',ids.slice(i,i+200));toast(`Deleted ${ids.length}`,'ok');loadBrowse();loadDash();}
 
 // BULK
 function toggleRowSelect(id,cb){if(cb.checked)selectedRows.add(id);else selectedRows.delete(id);const tr=document.getElementById('brow-'+id);if(tr)tr.classList.toggle('selected',cb.checked);updateBulkBar();}
@@ -1607,7 +1607,7 @@ function parseContactCSV(){const raw=document.getElementById('ct-paste').value.t
 async function importContacts(){
   if(!sbClient||!ctParsed)return;const m=getMapping('ct-mapper');if(m.email===undefined){showErr('ct-err','Map the Email column.');return;}hideErr('ct-err');
   const src=document.getElementById('ct-src').value.trim();const st=document.getElementById('ct-is');st.textContent='Checking duplicates...';
-  const{data:ex}=await sbClient.from('contacts').select('email');const eSet=new Set((ex||[]).map(r=>(r.email||'').toLowerCase()));
+  const{data:ex}=await sbClient.from('contacts').select('email').limit(10000);const eSet=new Set((ex||[]).map(r=>(r.email||'').toLowerCase()));
   const toIns=[];ctParsed.rows.forEach(row=>{const email=(row[m.email]||'').trim().toLowerCase();if(!email||eSet.has(email))return;const website=m.website!==undefined?(row[m.website]||'').trim():'';toIns.push({email,first_name:m.first_name!==undefined?(row[m.first_name]||null):null,last_name:m.last_name!==undefined?(row[m.last_name]||null):null,title:m.title!==undefined?(row[m.title]||null):null,company_name:m.company_name!==undefined?(row[m.company_name]||null):null,website:website||null,domain:normalizeDomain(website)||null,match_status:'pending',source_file:src||null});});
   if(!toIns.length){st.textContent='All already exist.';return;}
   let ins=0;for(let i=0;i<toIns.length;i+=1000){const{error}=await sbClient.from('contacts').insert(toIns.slice(i,i+1000));if(error){showErr('ct-err','Error: '+error.message);return;}ins+=Math.min(1000,toIns.length-i);st.textContent=`Inserting ${ins.toLocaleString()}...`;}
@@ -1618,7 +1618,7 @@ async function loadContactsTable(){
   if(!sbClient)return;
   document.getElementById('ct-tbl').innerHTML='<div class="empty" style="padding:30px"><div class="spin" style="display:inline-block;margin-right:8px"></div> Loading contacts...</div>';
   document.getElementById('ct-count').textContent='Loading...';
-  const{data}=await sbClient.from('contacts').select('*,companies(name,vertical,state)').limit(5000);
+  const{data}=await sbClient.from('contacts').select('*,companies(name,vertical,state)').limit(10000);
   allContacts=data||[];
   filterContacts();
 }
@@ -1699,7 +1699,7 @@ function filterContacts(){
 ══════════════════════════════════════════ */
 async function loadMissing(){
   if(!sbClient)return;document.getElementById('missing-ct').textContent='Loading...';
-  const{data:companiesWithContacts}=await sbClient.from('contacts').select('company_id').eq('match_status','matched').not('company_id','is',null);
+  const{data:companiesWithContacts}=await sbClient.from('contacts').select('company_id').eq('match_status','matched').not('company_id','is',null).limit(10000);
   const hasContactSet=new Set((companiesWithContacts||[]).map(r=>r.company_id));
   const{data:cos}=await sbClient.from('companies').select('id,name,website,state,vertical,categories').in('status',['done','needs_review']).is('contact_email',null);
   missingData=(cos||[]).filter(c=>!hasContactSet.has(c.id));
@@ -1723,14 +1723,14 @@ async function exportMissing(){
 async function loadCampaigns(){if(!sbClient)return;const{data}=await sbClient.from('campaigns').select('*').order('vertical,name');allCampaigns=data||[];document.getElementById('nb-camp').textContent=allCampaigns.length;renderCampaigns();}
 async function renderCampaigns(){
   const el=document.getElementById('camp-list');if(!allCampaigns.length){el.innerHTML='<div class="empty">No campaigns yet.</div>';return;}
-  const{data:counts}=await sbClient.from('contacts').select('campaign_id').not('campaign_id','is',null);const countMap={};(counts||[]).forEach(r=>{countMap[r.campaign_id]=(countMap[r.campaign_id]||0)+1;});
+  const{data:counts}=await sbClient.from('contacts').select('campaign_id').not('campaign_id','is',null).limit(10000);const countMap={};(counts||[]).forEach(r=>{countMap[r.campaign_id]=(countMap[r.campaign_id]||0)+1;});
   el.innerHTML=allCampaigns.map(c=>{const v=V[c.vertical]||V.other;const cnt=countMap[c.id]||0;return`<div class="camp-card"><div style="width:4px;border-radius:2px;background:${v.color};flex-shrink:0;align-self:stretch"></div><div class="cc-info"><div class="cc-name">${esc(c.name)}</div><div class="cc-meta">${v.emoji} ${v.label} · ${esc(c.sending_domain||'no domain')} · <span style="color:${c.status==='active'?'var(--green)':'var(--muted)'}">${c.status}</span></div>${c.states?`<div style="font-family:var(--mono);font-size:10px;color:var(--cyan);margin-top:4px">States: ${esc(c.states)}</div>`:`<div style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:4px">All states</div>`}${c.instantly_id?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted2);margin-top:3px">Instantly: ${esc(c.instantly_id)}</div>`:''}</div><div><div class="cc-count">${cnt}</div><div class="cc-clabel">contacts</div><button class="btn btn-r btn-sm" style="margin-top:8px" onclick="deleteCampaign('${c.id}')">Delete</button></div></div>`;}).join('');
 }
 async function createCampaign(){const name=document.getElementById('nc-name').value.trim();const vert=document.getElementById('nc-vert').value;if(!name||!vert){showErr('camp-err','Name and vertical required.');return;}hideErr('camp-err');const states=document.getElementById('nc-states').value.trim().toUpperCase().replace(/\s/g,'');const{error}=await sbClient.from('campaigns').insert({name,vertical:vert,states:states||null,sending_domain:document.getElementById('nc-domain').value.trim()||null,instantly_id:document.getElementById('nc-instid').value.trim()||null,status:document.getElementById('nc-status').value});if(error){showErr('camp-err',error.message);return;}toast('Campaign created','ok');['nc-name','nc-domain','nc-instid','nc-states'].forEach(id=>document.getElementById(id).value='');document.getElementById('nc-vert').value='';loadCampaigns();}
 async function deleteCampaign(id){if(!confirm('Delete this campaign? Contacts will be unassigned.'))return;await sbClient.from('contacts').update({campaign_id:null}).eq('campaign_id',id);await sbClient.from('campaigns').delete().eq('id',id);toast('Campaign deleted','ok');loadCampaigns();}
 async function autoAssign(){
   if(!sbClient||!allCampaigns.length){toast('Create campaigns first','err');return;}const activeCampaigns=allCampaigns.filter(c=>c.status==='active');if(!activeCampaigns.length){toast('No active campaigns','err');return;}
-  const{data:cts}=await sbClient.from('contacts').select('id,domain,companies(vertical,state)').eq('match_status','matched').not('suppressed','is',true);if(!cts||!cts.length){toast('No matched contacts to assign','info');return;}
+  const{data:cts}=await sbClient.from('contacts').select('id,domain,companies(vertical,state)').eq('match_status','matched').not('suppressed','is',true).limit(10000);if(!cts||!cts.length){toast('No matched contacts to assign','info');return;}
   let assigned=0,unassigned=0;const updates=cts.map(ct=>{const vert=ct.companies?.vertical;const state=(ct.companies?.state||'').trim().toUpperCase();const withStates=activeCampaigns.filter(c=>c.vertical===vert&&c.states);const withoutStates=activeCampaigns.filter(c=>c.vertical===vert&&!c.states);let match=withStates.find(c=>c.states.split(',').map(s=>s.trim().toUpperCase()).includes(state));if(!match)match=withoutStates[0];if(match){assigned++;return sbClient.from('contacts').update({campaign_id:match.id}).eq('id',ct.id);}else{unassigned++;return null;}}).filter(Boolean);
   for(let i=0;i<updates.length;i+=200)await Promise.all(updates.slice(i,i+200));
   const msg=`✓ ${assigned.toLocaleString()} assigned, ${unassigned.toLocaleString()} unmatched`;toast(msg,'ok');loadDash();loadCampaigns();
