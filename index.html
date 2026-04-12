@@ -183,7 +183,7 @@ select option{background:var(--s2);}
 /* ── TABLE ── */
 .tw{background:var(--s1);border:1px solid var(--bd);border-radius:9px;overflow:hidden;}
 table{width:100%;border-collapse:collapse;}
-thead th{padding:8px 12px;text-align:left;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;background:var(--s2);border-bottom:1px solid var(--bd);}
+thead th{padding:8px 12px;text-align:left;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;background:var(--s2);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5;}
 thead th.sort{cursor:pointer;user-select:none;transition:color .1s;}
 thead th.sort:hover{color:var(--text);}
 thead th.sort.active-sort{color:var(--purple);}
@@ -1156,12 +1156,22 @@ async function instBulkSyncContacts(){
 
 async function loadInstantlyStatusStats(){
   if(!sbClient)return;
-  const[{data:cts},{data:cos}]=await Promise.all([sbClient.from('contacts').select('instantly_status').limit(10000),sbClient.from('companies').select('inst_status').limit(10000)]);
-  const counts={active:0,replied:0,bounced:0,unsubscribed:0,none:0};
-  (cts||[]).forEach(r=>{const s=r.instantly_status||'none';counts[s]=(counts[s]||0)+1;});
-  document.getElementById('ist-active').textContent=counts.active||0;document.getElementById('ist-replied').textContent=counts.replied||0;document.getElementById('ist-bounced').textContent=counts.bounced||0;document.getElementById('ist-unsub').textContent=counts.unsubscribed||0;document.getElementById('ist-none').textContent=counts.none||0;
-  const coTouched=(cos||[]).filter(r=>r.inst_status).length;
-  const elCoTouched=document.getElementById('ist-co-touched');if(elCoTouched)elCoTouched.textContent=coTouched||0;
+  const[
+    {count:istActive},{count:istReplied},{count:istBounced},{count:istUnsub},{count:istNone},{count:istCoTouched}
+  ]=await Promise.all([
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','active'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','replied'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','bounced'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','unsubscribed'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).is('instantly_status',null),
+    sbClient.from('companies').select('*',{count:'exact',head:true}).not('inst_status','is',null),
+  ]);
+  document.getElementById('ist-active').textContent=(istActive||0).toLocaleString();
+  document.getElementById('ist-replied').textContent=(istReplied||0).toLocaleString();
+  document.getElementById('ist-bounced').textContent=(istBounced||0).toLocaleString();
+  document.getElementById('ist-unsub').textContent=(istUnsub||0).toLocaleString();
+  document.getElementById('ist-none').textContent=(istNone||0).toLocaleString();
+  const elCoTouched=document.getElementById('ist-co-touched');if(elCoTouched)elCoTouched.textContent=(istCoTouched||0).toLocaleString();
 }
 
 async function toggleCampExpand(campId,campName){
@@ -1237,29 +1247,42 @@ async function instDebug(){
 ══════════════════════════════════════════ */
 async function loadDash(){
   if(!sbClient)return;
-  const[{data:cos},{data:cts}]=await Promise.all([sbClient.from('companies').select('status,vertical,state').limit(10000),sbClient.from('contacts').select('match_status,campaign_id,suppressed').limit(10000)]);
-  const co=cos||[],ct=cts||[];
-  const c=s=>co.filter(r=>r.status===s).length;
-  document.getElementById('st-co').textContent=co.length;
-  document.getElementById('st-done').textContent=c('done');
-  document.getElementById('st-rv').textContent=c('needs_review');
-  document.getElementById('st-pend').textContent=c('pending');
-  document.getElementById('st-ct').textContent=ct.length;
-  document.getElementById('st-match').textContent=ct.filter(r=>r.match_status==='matched').length;
-  document.getElementById('st-assigned').textContent=ct.filter(r=>r.campaign_id).length;
-  document.getElementById('nb-co').textContent=co.length;
-  document.getElementById('nb-ct').textContent=ct.length;
+  // Use count queries to bypass Supabase project row limit
+  const[
+    {count:coTotal},{count:coDone},{count:coRv},{count:coPend},
+    {count:ctTotal},{count:ctMatch},{count:ctAssigned},
+    {data:coVerts}
+  ]=await Promise.all([
+    sbClient.from('companies').select('*',{count:'exact',head:true}),
+    sbClient.from('companies').select('*',{count:'exact',head:true}).eq('status','done'),
+    sbClient.from('companies').select('*',{count:'exact',head:true}).eq('status','needs_review'),
+    sbClient.from('companies').select('*',{count:'exact',head:true}).eq('status','pending'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('match_status','matched'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).not('campaign_id','is',null),
+    sbClient.from('companies').select('vertical,status').not('vertical','is',null).not('status','in','("pending","processing")').limit(10000),
+  ]);
+  const co=coVerts||[];
+  document.getElementById('st-co').textContent=(coTotal||0).toLocaleString();
+  document.getElementById('st-done').textContent=(coDone||0).toLocaleString();
+  document.getElementById('st-rv').textContent=(coRv||0).toLocaleString();
+  document.getElementById('st-pend').textContent=(coPend||0).toLocaleString();
+  document.getElementById('st-ct').textContent=(ctTotal||0).toLocaleString();
+  document.getElementById('st-match').textContent=(ctMatch||0).toLocaleString();
+  document.getElementById('st-assigned').textContent=(ctAssigned||0).toLocaleString();
+  document.getElementById('nb-co').textContent=(coTotal||0).toLocaleString();
+  document.getElementById('nb-ct').textContent=(ctTotal||0).toLocaleString();
 
   // DIAGNOSTIC: contacts exist but no companies
   const banner=document.getElementById('diag-banner');
-  if(co.length===0&&ct.length>0){
-    document.getElementById('diag-ct-count').textContent=ct.length.toLocaleString();
+  if((coTotal||0)===0&&(ctTotal||0)>0){
+    document.getElementById('diag-ct-count').textContent=(ctTotal||0).toLocaleString();
     banner.classList.add('show');
   } else {
     banner.classList.remove('show');
   }
 
-  const vc={};co.filter(r=>r.vertical&&r.status!=='pending'&&r.status!=='processing').forEach(r=>{vc[r.vertical]=(vc[r.vertical]||0)+1;});
+  const vc={};co.filter(r=>r.vertical).forEach(r=>{vc[r.vertical]=(vc[r.vertical]||0)+1;});
   const sg=document.getElementById('vert-sg');sg.innerHTML='';
   Object.entries(vc).sort((a,b)=>b[1]-a[1]).forEach(([k,n])=>{const v=V[k]||V.other;const el=document.createElement('div');el.className='sc';el.style.cursor='pointer';el.onclick=()=>switchTab('companies',k==='other'?null:null);el.innerHTML=`<div class="l">${v.emoji} ${v.label}</div><div class="v" style="color:${v.color}">${n}</div>`;sg.appendChild(el);});
   if(!Object.keys(vc).length)sg.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">No classified companies yet.</div>';
@@ -1477,10 +1500,25 @@ async function deleteCompany(id){if(!confirm('Delete this company permanently?')
 async function loadBrowse(){
   if(!sbClient)return;
   document.getElementById('br-table').innerHTML='<div class="empty" style="padding:30px"><div class="spin" style="display:inline-block;margin-right:8px"></div> Loading companies...</div>';
-  const[{data},{data:ctCounts}]=await Promise.all([
-    sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count').order('name').limit(10000),
-    sbClient.from('contacts').select('company_id,email').not('company_id','is',null).limit(10000)
-  ]);
+  // Paginate companies to bypass project row limit
+  let allCoData=[];let coOffset=0;
+  while(true){
+    const{data:page}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count').order('name').range(coOffset,coOffset+999);
+    if(!page||!page.length)break;
+    allCoData.push(...page);
+    if(page.length<1000)break;
+    coOffset+=1000;
+  }
+  // Paginate contacts for match counts
+  let allCtData=[];let ctOffset=0;
+  while(true){
+    const{data:page}=await sbClient.from('contacts').select('company_id,email').not('company_id','is',null).range(ctOffset,ctOffset+999);
+    if(!page||!page.length)break;
+    allCtData.push(...page);
+    if(page.length<1000)break;
+    ctOffset+=1000;
+  }
+  const data=allCoData;const ctCounts=allCtData;
   const ctMap={};(ctCounts||[]).forEach(ct=>{if(!ctMap[ct.company_id])ctMap[ct.company_id]={total:0,direct:0,generic:0};ctMap[ct.company_id].total++;if(isGenericEmail(ct.email||''))ctMap[ct.company_id].generic++;else ctMap[ct.company_id].direct++;});
   allBrowse=(data||[]).map(r=>({...r,_ctStats:ctMap[r.id]||null}));
   selectedRows.clear();updateBulkBar();filterBrowse();
@@ -1618,8 +1656,16 @@ async function loadContactsTable(){
   if(!sbClient)return;
   document.getElementById('ct-tbl').innerHTML='<div class="empty" style="padding:30px"><div class="spin" style="display:inline-block;margin-right:8px"></div> Loading contacts...</div>';
   document.getElementById('ct-count').textContent='Loading...';
-  const{data}=await sbClient.from('contacts').select('*,companies(name,vertical,state)').limit(10000);
-  allContacts=data||[];
+  // Paginate to bypass project row limit
+  let allCtPages=[];let ctPgOffset=0;
+  while(true){
+    const{data:page}=await sbClient.from('contacts').select('*,companies(name,vertical,state)').range(ctPgOffset,ctPgOffset+999);
+    if(!page||!page.length)break;
+    allCtPages.push(...page);
+    if(page.length<1000)break;
+    ctPgOffset+=1000;
+  }
+  allContacts=allCtPages;
   filterContacts();
 }
 
