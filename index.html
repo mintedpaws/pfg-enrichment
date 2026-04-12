@@ -1043,10 +1043,11 @@ async function instBulkSyncContacts(){
       // 1=Active(in sequence) 2=Paused 3=Completed(sequence done) 4=Unsubscribed -1=Bounced
       // status_summary field has human-readable label
       const rawSt=lead.status;
-      const summary=(lead.status_summary||'').toLowerCase();
-      const isBounced=rawSt===-1||summary.includes('bounce');
-      const isUnsub=rawSt===4||summary.includes('unsub')||summary.includes('opt');
-      const isReplied=lead.email_reply_count>0||summary.includes('reply')||summary.includes('replied')||summary.includes('interested');
+      // status_summary is an object — stringify and search for signals
+      const summaryStr=JSON.stringify(lead.status_summary||'').toLowerCase();
+      const isBounced=rawSt===-1||summaryStr.includes('bounce');
+      const isUnsub=rawSt===4||summaryStr.includes('unsub')||summaryStr.includes('opted');
+      const isReplied=lead.email_reply_count>0||summaryStr.includes('reply')||summaryStr.includes('interested');
       const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':'active';
       const campaign=campIdToName[lead.campaign]||lead.campaign||'';
       const ts=lead.timestamp_last_contact||lead.timestamp_updated||null;
@@ -1184,8 +1185,8 @@ async function instDebug(){
     const distStr=Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`status=${k}: ${v} leads`).join(' | ');
     // Also show status_summary distribution
     const sumDist={};
-    items.forEach(l=>{const s=String(l.status_summary||'null');sumDist[s]=(sumDist[s]||0)+1;});
-    const sumStr=Object.entries(sumDist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`"${k}": ${v}`).join(' | ');
+    items.forEach(l=>{const s=JSON.stringify(l.status_summary)||'null';sumDist[s]=(sumDist[s]||0)+1;});
+    const sumStr=Object.entries(sumDist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}: ${v} leads`).join(' | ');
     const lead=items[0];
     const keyList=Object.keys(lead).join(', ');
     st.innerHTML=`<div style="font-family:var(--mono);font-size:11px;line-height:1.8;padding:10px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;margin-top:8px">
@@ -1196,7 +1197,7 @@ async function instDebug(){
       <div style="color:var(--cyan);font-weight:700;margin-bottom:4px">All lead fields:</div>
       <div style="color:var(--muted);margin-bottom:10px">${keyList}</div>
       <div style="color:var(--purple);font-weight:700;margin-bottom:4px">First lead:</div>
-      <div style="color:var(--text)">status=${JSON.stringify(lead.status)} · status_summary="${lead.status_summary}" · reply_count=${lead.email_reply_count}</div>
+      <div style="color:var(--text)">status=${JSON.stringify(lead.status)} · status_summary=${JSON.stringify(lead.status_summary)} · reply_count=${lead.email_reply_count}</div>
     </div>`;
   }catch(e){st.textContent='Error: '+e.message;}
 }
