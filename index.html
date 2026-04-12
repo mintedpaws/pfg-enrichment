@@ -1053,6 +1053,42 @@ async function instBulkSyncContacts(){
   st.textContent='Loading companies...';
   const{data:dbCos}=await sbClient.from('companies').select('id,domain');
   const domainToCompanyId={};(dbCos||[]).forEach(co=>{if(co.domain)domainToCompanyId[co.domain]=co.id;});
+
+  // Build domain → best company name from leads (longest non-empty wins)
+  const domainNameMap={};
+  Object.values(emailMap).forEach(lead=>{
+    if(!lead.domain)return;
+    const existing=domainNameMap[lead.domain];
+    if(lead.company_name&&(!existing||lead.company_name.length>existing.length))
+      domainNameMap[lead.domain]=lead.company_name;
+  });
+
+  // Create company records for domains not yet in DB
+  const missingDomains=Object.keys(domainMap).filter(d=>d&&!domainToCompanyId[d]);
+  if(missingDomains.length){
+    st.textContent=`Creating ${missingDomains.length} new companies from Instantly leads...`;
+    const newCos=missingDomains.map(domain=>{
+      const inst=domainMap[domain];
+      return{
+        name:domainNameMap[domain]||domain,
+        domain,
+        website:domain,
+        inst_status:inst.status,
+        inst_campaign:inst.campaign||null,
+        inst_last_contacted:inst.last_contacted||null,
+        inst_contacted_count:inst.count||0,
+        status:'pending',
+        source_file:'instantly'
+      };
+    });
+    for(let i=0;i<newCos.length;i+=500){
+      const{data:inserted,error}=await sbClient.from('companies').insert(newCos.slice(i,i+500)).select('id,domain');
+      if(error){toast('Company insert error: '+error.message,'err');}
+      (inserted||[]).forEach(co=>{if(co.domain)domainToCompanyId[co.domain]=co.id;});
+    }
+    st.textContent=`Created ${missingDomains.length} companies · Upserting contacts...`;
+  }
+
   st.textContent='Upserting contacts...';
   const allLeads=Object.values(emailMap);let contactsUpserted=0;
   for(let i=0;i<allLeads.length;i+=200){
@@ -1071,7 +1107,8 @@ async function instBulkSyncContacts(){
   prog.style.display='none';
   const syncTime=new Date().toLocaleString();localStorage.setItem('inst_last_sync',syncTime);document.getElementById('inst-last-sync').textContent=`Last synced: ${syncTime}`;
   const matched=Object.values(emailMap).filter(l=>domainToCompanyId[l.domain]).length;
-  const msg=`✓ ${contactsUpserted.toLocaleString()} contacts synced · ${matched.toLocaleString()} matched to companies`;
+  const newCoCount=missingDomains.length;
+  const msg=`✓ ${contactsUpserted.toLocaleString()} contacts · ${matched.toLocaleString()} matched · ${newCoCount} new companies created`;
   st.textContent=msg;toast(msg,'ok');
   // FIX 1: Refresh browse table if loaded
   if(allBrowse.length)loadBrowse();
