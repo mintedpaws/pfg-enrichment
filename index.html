@@ -1043,14 +1043,16 @@ async function instBulkSyncContacts(){
       // 1=Active(in sequence) 2=Paused 3=Completed(sequence done) 4=Unsubscribed -1=Bounced
       // status_summary field has human-readable label
       const rawSt=lead.status;
-      // status_summary is an object — stringify and search for signals
-      const summaryStr=JSON.stringify(lead.status_summary||'').toLowerCase();
-      const isBounced=rawSt===-1||summaryStr.includes('bounce');
-      const isUnsub=rawSt===4||summaryStr.includes('unsub')||summaryStr.includes('opted');
-      const isReplied=lead.email_reply_count>0||summaryStr.includes('reply')||summaryStr.includes('interested');
+      // Confirmed Instantly v2 status codes: 1=Active 2=Paused 3=Completed -1=Bounced 4=Unsubscribed
+      // status_summary only contains lastStep metadata — not used for status detection
+      const isBounced=rawSt===-1;
+      const isUnsub=rawSt===4;
+      const isReplied=lead.email_reply_count>0;
       const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':'active';
+      // Use lastStep timestamp as most reliable last_contact signal
+      const lastStepTs=lead.status_summary?.lastStep?.timestamp_executed||null;
       const campaign=campIdToName[lead.campaign]||lead.campaign||'';
-      const ts=lead.timestamp_last_contact||lead.timestamp_updated||null;
+      const ts=lastStepTs||lead.timestamp_last_contact||lead.timestamp_updated||null;
       const ex=emailMap[email];
       if(!ex||(statusPriority[status]||0)>(statusPriority[ex.status]||0)){emailMap[email]={email,status,campaign,last_contacted:ts,first_name:lead.first_name||'',last_name:lead.last_name||'',company_name:lead.company_name||'',domain,source:'instantly'};}
       if(domain){if(!domainMap[domain])domainMap[domain]={status,campaign,last_contacted:ts,count:1};else{domainMap[domain].count++;if((statusPriority[status]||0)>(statusPriority[domainMap[domain].status]||0)){domainMap[domain].status=status;domainMap[domain].campaign=campaign;}if(ts&&(!domainMap[domain].last_contacted||ts>domainMap[domain].last_contacted))domainMap[domain].last_contacted=ts;}}
@@ -1183,21 +1185,21 @@ async function instDebug(){
     const dist={};
     items.forEach(l=>{const s=String(l.status!=null?l.status:'null');dist[s]=(dist[s]||0)+1;});
     const distStr=Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`status=${k}: ${v} leads`).join(' | ');
-    // Also show status_summary distribution
-    const sumDist={};
-    items.forEach(l=>{const s=JSON.stringify(l.status_summary)||'null';sumDist[s]=(sumDist[s]||0)+1;});
-    const sumStr=Object.entries(sumDist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}: ${v} leads`).join(' | ');
+    // Show sending inboxes from status_summary.lastStep.from
+    const inboxDist={};
+    items.forEach(l=>{const from=l.status_summary?.lastStep?.from||'unknown';inboxDist[from]=(inboxDist[from]||0)+1;});
+    const sumStr=Object.entries(inboxDist).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`${k}: ${v}`).join(' | ');
     const lead=items[0];
     const keyList=Object.keys(lead).join(', ');
     st.innerHTML=`<div style="font-family:var(--mono);font-size:11px;line-height:1.8;padding:10px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;margin-top:8px">
       <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Status codes (${items.length} leads):</div>
       <div style="color:var(--text);margin-bottom:6px">${distStr}</div>
-      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">status_summary values:</div>
+      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Sending inboxes (from status_summary.lastStep.from):</div>
       <div style="color:var(--green);margin-bottom:10px">${sumStr}</div>
       <div style="color:var(--cyan);font-weight:700;margin-bottom:4px">All lead fields:</div>
       <div style="color:var(--muted);margin-bottom:10px">${keyList}</div>
       <div style="color:var(--purple);font-weight:700;margin-bottom:4px">First lead:</div>
-      <div style="color:var(--text)">status=${JSON.stringify(lead.status)} · status_summary=${JSON.stringify(lead.status_summary)} · reply_count=${lead.email_reply_count}</div>
+      <div style="color:var(--text)">status=${JSON.stringify(lead.status)} · lastStep.from="${lead.status_summary?.lastStep?.from||'n/a'}" · lastStep.ts="${lead.status_summary?.lastStep?.timestamp_executed||'n/a'}" · reply_count=${lead.email_reply_count}</div>
     </div>`;
   }catch(e){st.textContent='Error: '+e.message;}
 }
