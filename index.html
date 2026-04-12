@@ -756,7 +756,6 @@ function detectTags(name,revenue,employees){
   return tags.length?tags.join(','):null;
 }
 function calcScore(co){
-  // Manual override takes precedence
   if(co.score_override!=null&&co.score_override>=0)return Math.min(co.score_override,100);
   let s=0;
   const rev=parseRevenue(co.revenue);
@@ -783,7 +782,7 @@ function scoreTier(score){
 }
 
 /* ── MULTI-FILE STATE ── */
-let coParsedFiles=[]; // [{parsed:{headers,rows}, filename}]
+let coParsedFiles=[];
 
 /* ══════════════════════════════════════════
    STATE
@@ -797,9 +796,9 @@ let logEntries=[];
 let sessionStart=0, sessionDone=0, sessionTotal=0;
 let authMode='signin';
 let currentDrawerId=null;
-let badRowIndices=new Set(); // indices flagged as suspicious
-let excludedRowIndices=new Set(); // user chose to exclude
-let selectedRows=new Set(); // for bulk actions
+let badRowIndices=new Set();
+let excludedRowIndices=new Set();
+let selectedRows=new Set();
 
 /* ══════════════════════════════════════════
    INIT
@@ -888,9 +887,8 @@ function saveInstKey(){
   else{document.getElementById('inst-dot').style.cssText='width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0';}
 }
 
-/* ── QUICK FILTER (stat card clicks) ── */
+/* ── QUICK FILTER ── */
 function quickFilter(status){
-  // Switch to dashboard, load browse with filter
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
   document.querySelector('.nb[data-tab="dash"]').classList.add('active');
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -1012,10 +1010,9 @@ async function instLoadInboxes(){
   if(!allInboxes.length){st.textContent='No inboxes found.';document.getElementById('inst-inbox-grid').innerHTML='<div class="empty">No inboxes found.</div>';return;}
   instAllInboxes=allInboxes;
   st.textContent=`${allInboxes.length} inboxes — loading warmup...`;
-  const assignmentMap={}; // populated separately via "Check Assignments" button
+  const assignmentMap={};
   st.textContent=`${allInboxes.length} inboxes — loading warmup...`;
 
-  // Get warmup data for all inboxes via POST
   const emails=allInboxes.map(a=>a.email).filter(Boolean);
   let warmupMap={};
   try{
@@ -1050,7 +1047,7 @@ async function instLoadInboxes(){
       var isFree=campaigns.length===0;
       var wData=warmupMap[email]||{};
       var wKeys=Object.keys(wData).sort().reverse();
-      var w=wData[today]||wData[yesterday]||( wKeys.length?wData[wKeys[0]]:null);
+      var w=wData[today]||wData[yesterday]||(wKeys.length?wData[wKeys[0]]:null);
       var warmupSent=w&&w.sent||0;
       var warmupInboxC=w&&w.landed_inbox||0;
       var warmupSpam=w&&w.landed_spam||0;
@@ -1087,7 +1084,6 @@ async function instCheckAssignments(){
   btn.disabled=true;btn.textContent='Checking...';
   instAssignmentMap={};
   const emails=instAllInboxes.map(i=>i.email).filter(Boolean);
-  // Process in small batches of 5 with delay to avoid rate limits
   for(let i=0;i<emails.length;i+=5){
     const batch=emails.slice(i,i+5);
     await Promise.all(batch.map(async email=>{
@@ -1098,9 +1094,8 @@ async function instCheckAssignments(){
       }catch(e){}
     }));
     st.textContent=`Checking assignments ${Math.min(i+5,emails.length)}/${emails.length}...`;
-    await new Promise(r=>setTimeout(r,300)); // small delay between batches
+    await new Promise(r=>setTimeout(r,300));
   }
-  // Update all inbox cards with assignment data
   instAllInboxes.forEach(inbox=>{
     const email=inbox.email||'';
     const card=document.querySelector(`.inbox-card[data-email="${CSS.escape(email)}"]`);
@@ -1116,7 +1111,6 @@ async function instCheckAssignments(){
   });
   const assignedCount=Object.keys(instAssignmentMap).length;
   const freeCount=emails.length-assignedCount;
-  // Update filter labels
   const allLabel=document.querySelector('input[name="inbox-filter"][value="all"]')?.parentElement;
   const freeLabel=document.querySelector('input[name="inbox-filter"][value="free"]')?.parentElement;
   const assignedLabel=document.querySelector('input[name="inbox-filter"][value="assigned"]')?.parentElement;
@@ -1136,7 +1130,6 @@ function sortInboxCards(){
   const grid=document.getElementById('inbox-cards');
   if(!grid)return;
   const cards=[...grid.querySelectorAll('.inbox-card')];
-  // Remove existing domain headers
   grid.querySelectorAll('.domain-header').forEach(h=>h.remove());
 
   cards.sort((a,b)=>{
@@ -1153,7 +1146,6 @@ function sortInboxCards(){
     return 0;
   });
 
-  // For domain sort, inject domain group headers
   if(sort==='domain'){
     cards.forEach(c=>c.remove());
     grid.style.display='block';
@@ -1177,7 +1169,6 @@ function sortInboxCards(){
       currentGroup.appendChild(card);
     });
   } else {
-    // Reset to grid layout
     grid.style.display='grid';
     cards.forEach(c=>{c.style.display='';c.style.width='';c.style.marginRight='';c.style.marginBottom='';c.style.verticalAlign='';});
     cards.forEach(c=>grid.appendChild(c));
@@ -1191,16 +1182,13 @@ async function instBulkSyncContacts(){
   prog.style.display='block';
   st.textContent='Pulling all leads from Instantly...';
 
-  // Pull ALL Instantly leads
-  const emailMap={};  // email → lead object with best status
-  const domainMap={}; // domain → {status, campaign, last_contacted, count, emails[]}
+  const emailMap={};
+  const domainMap={};
   let startingAfter=null,page=0,total=0;
   const statusPriority={replied:4,bounced:3,unsubscribed:3,active:1};
 
-  // Build campaign ID → name map from already-loaded campaign data
   const campIdToName={};
   if(instCampData.length){instCampData.forEach(c=>{campIdToName[c.id]=c.name||c.id;});}
-  // Also fetch campaigns if not loaded yet
   if(!instCampData.length){
     const cd=await instFetch('/api/v2/campaigns',{limit:100});
     (cd?.items||[]).forEach(c=>{campIdToName[c.id]=c.name||c.id;});
@@ -1230,7 +1218,6 @@ async function instBulkSyncContacts(){
       const firstName=lead.first_name||'';
       const lastName=lead.last_name||'';
 
-      // Email map — keep highest priority status
       const ex=emailMap[email];
       if(!ex||(statusPriority[status]||0)>(statusPriority[ex.status]||0)){
         emailMap[email]={email,status,campaign,last_contacted:ts,
@@ -1239,7 +1226,6 @@ async function instBulkSyncContacts(){
           domain,source:'instantly'};
       }
 
-      // Domain map
       if(domain){
         if(!domainMap[domain]){
           domainMap[domain]={status,campaign,last_contacted:ts,emails:[email],count:1};
@@ -1329,6 +1315,9 @@ async function instBulkSyncContacts(){
   const msg=`✓ ${contactsUpserted.toLocaleString()} contacts synced · ${matched.toLocaleString()} matched to companies`;
   st.textContent=msg;
   toast(msg,'ok');
+
+  // ── FIX 1: Refresh browse table if it's already loaded so inst_status columns update live ──
+  if(allBrowse.length) loadBrowse();
 }
 
 async function loadInstantlyStatusStats(){
@@ -1344,7 +1333,6 @@ async function loadInstantlyStatusStats(){
   document.getElementById('ist-bounced').textContent=counts.bounced||0;
   document.getElementById('ist-unsub').textContent=counts.unsubscribed||0;
   document.getElementById('ist-none').textContent=counts.none||0;
-  // Company stats
   const coTouched=(cos||[]).filter(r=>r.inst_status).length;
   const elCoTouched=document.getElementById('ist-co-touched');
   if(elCoTouched)elCoTouched.textContent=coTouched||0;
@@ -1358,66 +1346,18 @@ async function toggleCampExpand(campId, campName){
   expand.style.display=isOpen?'none':'block';
   chevron.textContent=isOpen?'▼':'▲';
   if(!isOpen&&accountsEl.textContent==='Loading...'){
-    // Fetch the full campaign object which contains assigned email accounts
     const camp=await instFetch(`/api/v2/campaigns/${campId}`);
     if(!camp){accountsEl.innerHTML='<span style="color:var(--muted);font-size:11px">Could not load campaign</span>';return;}
-    // Try all known field names for email accounts in campaign object
     const accounts=camp.email_accounts||camp.accounts||camp.sending_accounts||camp.email_list||[];
-    // Also check campaign_schedule for accounts
     const scheduleAccounts=camp.campaign_schedule?.accounts||camp.campaign_schedule?.email_accounts||[];
     const allAccounts=[...new Set([...accounts,...scheduleAccounts])];
     if(!allAccounts.length){
-      // Last resort: show raw keys to debug
       const keys=Object.keys(camp).filter(k=>Array.isArray(camp[k])&&camp[k].length>0);
       accountsEl.innerHTML=`<span style="color:var(--muted);font-size:10px;font-family:var(--mono)">Array fields in campaign: ${keys.join(', ')||'none'}</span>`;
       return;
     }
     accountsEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px">${allAccounts.map(a=>`<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:var(--s2);border:1px solid var(--bd);color:var(--text)">${esc(typeof a==='string'?a:a.email||a.address||JSON.stringify(a).slice(0,30))}</span>`).join('')}</div>`;
   }
-}
-
-async function instSyncCompanies(){
-  if(!sbClient||!sessionStorage.getItem('inst_key'))return;
-  const st=document.getElementById('inst-sync-st');
-  st.textContent='Building domain map from Instantly...';
-  // Pull all leads and index by domain
-  const domainMap={}; // domain → {status, campaign, last_contacted}
-  let startingAfter=null,page=0,total=0;
-  while(page<100){
-    const params={limit:100};if(startingAfter)params.starting_after=startingAfter;
-    const data=await instFetch('/api/v2/leads',params);
-    if(!data||!data.items?.length)break;
-    data.items.forEach(lead=>{
-      const email=(lead.email||'').toLowerCase();
-      const domain=email.split('@')[1]||'';
-      if(!domain)return;
-      const status=lead.status===2?'unsubscribed':lead.status===3?'bounced':lead.replied?'replied':'active';
-      const priority={replied:4,bounced:3,unsubscribed:3,active:1};
-      if(!domainMap[domain]||(priority[status]||0)>(priority[domainMap[domain].status]||0)){
-        domainMap[domain]={status,campaign:lead.campaign_name||'',last_contacted:lead.timestamp_updated||null};
-      }
-    });
-    total+=data.items.length;
-    st.textContent=`Pulled ${total.toLocaleString()} leads — building domain map...`;
-    if(!data.next_starting_after||data.items.length<100)break;
-    startingAfter=data.next_starting_after;page++;
-  }
-  st.textContent=`Matching ${Object.keys(domainMap).length} domains against companies...`;
-  // Load all companies with domains
-  const{data:cos}=await sbClient.from('companies').select('id,domain');
-  let matched=0;
-  const updates=[];
-  (cos||[]).forEach(co=>{
-    const inst=domainMap[co.domain||''];
-    if(inst){matched++;updates.push({id:co.id,instantly_status:inst.status,instantly_campaign:inst.campaign});}
-    else updates.push({id:co.id,instantly_status:null,instantly_campaign:null});
-  });
-  for(let i=0;i<updates.length;i+=200){
-    const chunk=updates.slice(i,i+200);
-    await Promise.all(chunk.map(u=>{const{id,...f}=u;return sbClient.from('companies').update(f).eq('id',id);}));
-  }
-  st.textContent=`✓ ${matched} companies matched to Instantly leads`;
-  toast(`${matched} companies synced`,'ok');
 }
 
 async function instSyncSuppression(){
@@ -1427,7 +1367,7 @@ async function instSyncSuppression(){
   const statuses=['bounced','unsubscribed','opted_out'];
   for(const status of statuses){
     startingAfter=null;
-    for(let i=0;i<20;i++){// max 20 pages per status
+    for(let i=0;i<20;i++){
       const params={limit:100,contact_status:status};
       if(startingAfter)params.starting_after=startingAfter;
       const data=await instFetch('/api/v2/leads',params);
@@ -1440,9 +1380,7 @@ async function instSyncSuppression(){
     st.textContent=`Fetched ${allLeads.length} ${status}...`;
   }
   if(!allLeads.length){st.textContent='No bounced/unsubscribed contacts found.';return;}
-  // Deduplicate and insert to suppression table
   const unique=[...new Map(allLeads.map(l=>[l.value,l])).values()].filter(l=>l.value);
-  // Check existing
   const{data:existing}=await sbClient.from('suppression').select('value');
   const existSet=new Set((existing||[]).map(r=>r.value));
   const toAdd=unique.filter(l=>!existSet.has(l.value));
@@ -1481,32 +1419,6 @@ async function instDebug(){
   }catch(e){st.textContent='Error: '+e.message;}
 }
 
-async function instCheckContacted(days=90){
-  const st=document.getElementById('inst-sync-st');
-  st.textContent=`Checking contacts sent to in last ${days} days...`;
-  const cutoff=new Date(Date.now()-days*24*60*60*1000).toISOString();
-  let allLeads=[],startingAfter=null;
-  for(let i=0;i<50;i++){
-    const params={limit:100,contact_status:'active'};
-    if(startingAfter)params.starting_after=startingAfter;
-    const data=await instFetch('/api/v2/leads',params);
-    if(!data)break;
-    const items=(data.items||[]).filter(l=>l.last_contacted_at&&l.last_contacted_at>cutoff);
-    allLeads.push(...items.map(l=>(l.email||'').toLowerCase()).filter(Boolean));
-    if(!data.next_starting_after||(data.items||[]).length<100)break;
-    startingAfter=data.next_starting_after;
-  }
-  if(!allLeads.length){st.textContent=`No active contacts found in last ${days} days.`;return;}
-  // Add to suppression as "recently_contacted"
-  const{data:existing}=await sbClient.from('suppression').select('value');
-  const existSet=new Set((existing||[]).map(r=>r.value));
-  const toAdd=[...new Set(allLeads)].filter(e=>!existSet.has(e)).map(e=>({value:e,type:'email',reason:`contacted_within_${days}d`}));
-  if(toAdd.length){for(let i=0;i<toAdd.length;i+=500)await sbClient.from('suppression').insert(toAdd.slice(i,i+500));}
-  st.textContent=`✓ ${toAdd.length} recently-contacted emails flagged (${days}-day window)`;
-  toast(`${toAdd.length} recently contacted flagged`,'ok');
-  loadSuppressionStats();
-}
-
 /* ══════════════════════════════════════════
    NAV
 ══════════════════════════════════════════ */
@@ -1540,8 +1452,6 @@ async function loadDash(){
   document.getElementById('st-assigned').textContent=ct.filter(r=>r.campaign_id).length;
   document.getElementById('nb-co').textContent=co.length;
   document.getElementById('nb-ct').textContent=ct.length;
-  // Missing = classified companies with no contact (rough estimate from stats)
-  // Proper count loaded separately
   const vc={};
   co.filter(r=>r.vertical&&r.status!=='pending'&&r.status!=='processing').forEach(r=>{vc[r.vertical]=(vc[r.vertical]||0)+1;});
   const sg=document.getElementById('vert-sg');sg.innerHTML='';
@@ -1583,11 +1493,9 @@ function handleCoFiles(files){
     if(!coParsedFiles.length)return;
     const totalRows=coParsedFiles.reduce((s,f)=>s+f.parsed.rows.length,0);
     document.getElementById('co-ps').textContent=`${coParsedFiles.length} files · ${totalRows.toLocaleString()} rows total`;
-    // Show file list
     const fl=document.getElementById('co-file-list');
     fl.style.display='block';
     fl.innerHTML=coParsedFiles.map(f=>`<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;padding:3px 0;border-bottom:1px solid var(--bd)"><span style="color:var(--text)">${esc(f.filename)}</span><span style="color:var(--muted)">${f.parsed.rows.length.toLocaleString()} rows</span></div>`).join('');
-    // Use first file for mapper
     const first=coParsedFiles[0];
     coParsed=first.parsed;
     const autoM=autoDetect(first.parsed.headers,CO_FIELDS);
@@ -1675,7 +1583,6 @@ function autoDetect(headers,fields){
         const pn=p.toLowerCase();
         if(h===pn)return true;
         if(h.replace(/[_\s]/g,' ')===pn)return true;
-        // "business name" pattern matches "business" header (all words present)
         if(pn.includes(' ')&&pn.split(' ').every(w=>w.length>2&&h.includes(w)))return true;
         return false;
       });
@@ -1704,16 +1611,13 @@ const US_STATES=new Set(['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI',
 
 function isSuspicious(name, website, state){
   if(!name)return{bad:false};
-  // Name checks
   if(name.length>65)return{bad:true,reason:'name too long'};
   if(BAD_NAME_PATTERNS.some(p=>p.test(name)))return{bad:true,reason:'suspicious start'};
-  // Sentence detection: 5+ words with 2+ function words = likely a sentence not a business name
   const words=name.toLowerCase().split(/\s+/);
   if(words.length>=5){
     const fnCount=words.filter(w=>SENTENCE_WORDS.has(w)).length;
     if(fnCount>=2)return{bad:true,reason:'looks like a sentence'};
   }
-  // Column-shift detection: if website doesn't look like a URL and state isn't a 2-letter code
   if(website&&website.length>0&&!website.match(/^https?:\/\/|^www\.|^\S+\.\S+/)){
     return{bad:true,reason:'column shift — website field looks wrong'};
   }
@@ -1755,7 +1659,6 @@ function includeAllBad(){excludedRowIndices.clear();badRowIndices.forEach(i=>{co
    COMPANY IMPORT
 ══════════════════════════════════════════ */
 function parseCompanyCSV(){
-  // If files already loaded via drop/select, use those directly
   if(coParsedFiles.length>0){
     const first=coParsedFiles[0];
     coParsed=first.parsed;
@@ -1766,7 +1669,6 @@ function parseCompanyCSV(){
     runQualityCheck(first.parsed.rows,autoM.name,autoM.website,autoM.state);
     return;
   }
-  // Fallback: parse from paste textarea
   const raw=document.getElementById('co-paste').value.trim();
   if(!raw){showErr('co-err','Paste rows or upload a file.');return;}
   hideErr('co-err');
@@ -1824,23 +1726,18 @@ async function importCompanies(){
         const state=m.state!==undefined?(row[m.state]||''):'';
         if(isSuspicious(name,website,state).bad){qualitySkipped++;continue;}
       }
-      // Both email columns — pick best as primary, save other as extra contact
       const rawEmail=m.email!==undefined?((row[m.email]||'').trim().toLowerCase()||null):null;
       const rawContactEmail=m.contact_email!==undefined?((row[m.contact_email]||'').trim().toLowerCase()||null):null;
       const cFirst=m.contact_first_name!==undefined?(row[m.contact_first_name]||null):null;
       const cLast=m.contact_last_name!==undefined?(row[m.contact_last_name]||null):null;
       const cRole=m.contact_role!==undefined?(row[m.contact_role]||null):null;
-      // Contact Email (named person) beats Email (generic) — use Contact Email as primary if available
-      // If Contact Email is empty, fall back to Email column
-      // If both exist and are different, save the secondary to contacts table
       let cEmail=null,secondaryEmail=null;
       if(rawContactEmail&&rawEmail&&rawContactEmail!==rawEmail){
-        // Both exist — prefer non-generic; Contact Email is usually named person
         const contactGeneric=isGenericEmail(rawContactEmail);
         const rawGeneric=isGenericEmail(rawEmail);
         if(!contactGeneric){cEmail=rawContactEmail;secondaryEmail=rawEmail;}
         else if(!rawGeneric){cEmail=rawEmail;secondaryEmail=rawContactEmail;}
-        else{cEmail=rawContactEmail;secondaryEmail=rawEmail;} // both generic, prefer Contact Email
+        else{cEmail=rawContactEmail;secondaryEmail=rawEmail;}
       } else {
         cEmail=rawContactEmail||rawEmail||null;
       }
@@ -1890,7 +1787,6 @@ async function importCompanies(){
     st.textContent=`Inserting... ${ins.toLocaleString()} / ${cleanIns.length.toLocaleString()}`;
   }
 
-  // Update location counts for existing companies
   for(const[domain,extra]of Object.entries(locationUpdates)){
     const id=existDomainToId[domain];
     if(!id)continue;
@@ -1898,7 +1794,6 @@ async function importCompanies(){
     if(cd)await sbClient.from('companies').update({location_count:(cd.location_count||1)+extra}).eq('id',id);
   }
 
-  // Save extra contacts
   if(extraContacts.length){
     const{data:ect}=await sbClient.from('contacts').select('email');
     const eset=new Set((ect||[]).map(r=>(r.email||'').toLowerCase()));
@@ -1918,7 +1813,6 @@ async function importCompanies(){
   document.getElementById('co-mwrap').style.display='none';
   coParsed=null;coParsedFiles=[];loadDash();
 }
-
 
 /* ══════════════════════════════════════════
    CLASSIFICATION
@@ -2062,15 +1956,13 @@ async function loadBrowse(){
     sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count').order('name').limit(3000),
     sbClient.from('contacts').select('company_id,email').not('company_id','is',null)
   ]);
-  // Build contact count map per company
-  const ctMap={}; // company_id → {total, direct, generic}
+  const ctMap={};
   (ctCounts||[]).forEach(ct=>{
     if(!ctMap[ct.company_id])ctMap[ct.company_id]={total:0,direct:0,generic:0};
     ctMap[ct.company_id].total++;
     if(isGenericEmail(ct.email||''))ctMap[ct.company_id].generic++;
     else ctMap[ct.company_id].direct++;
   });
-  // Merge contact counts into company records
   allBrowse=(data||[]).map(r=>({...r,_ctStats:ctMap[r.id]||null}));
   selectedRows.clear();updateBulkBar();filterBrowse();
 }
@@ -2127,7 +2019,6 @@ function filterBrowse(){
       `<span style="font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;background:${t==='enterprise'?'rgba(59,130,246,.15)':t==='government'?'rgba(234,179,8,.15)':'var(--s3)'};color:${t==='enterprise'?'var(--blue)':t==='government'?'var(--yellow)':'var(--muted)'}">${t}</span>`
     ).join(' ');
 
-    // Contact badge logic
     const cts=r._ctStats;
     const lsEmail=r.contact_email||'';
     const lsGeneric=lsEmail&&isGenericEmail(lsEmail);
@@ -2180,6 +2071,10 @@ async function bulkAssignVertical(){const v=document.getElementById('bulk-vert-s
 
 /* ══════════════════════════════════════════
    COMPANY DRAWER
+   FIX 2: renamed inner allContacts → drContacts to avoid
+   shadowing the module-level allContacts array.
+   FIX 3: auto-trigger instCheckContact for contacts that
+   have no synced Instantly status on drawer open.
 ══════════════════════════════════════════ */
 async function openDrawer(id){
   currentDrawerId=id;
@@ -2191,12 +2086,9 @@ async function openDrawer(id){
   document.getElementById('company-drawer').classList.add('open');
   document.getElementById('drawer-overlay').classList.add('open');
 
-  // Load linked contacts
   const{data:contacts}=await sbClient.from('contacts').select('*,campaigns(name)').eq('company_id',id).limit(20);
 
   let html='';
-  // Vertical editor
-  // Score badge
   const sc=calcScore(co);const tier=scoreTier(sc);
   const isOverride=co.score_override!=null&&co.score_override>=0;
   html+=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px 14px;background:var(--s2);border:1px solid ${isOverride?'var(--accent)':'var(--bd)'};border-radius:8px">
@@ -2222,7 +2114,6 @@ async function openDrawer(id){
     </div>
   </div>`;
 
-  // Instantly status panel
   if(co.inst_status){
     const instColor=co.inst_status==='replied'?'var(--green)':co.inst_status==='bounced'||co.inst_status==='unsubscribed'?'var(--red)':'var(--yellow)';
     const instEmoji=co.inst_status==='replied'?'💬':co.inst_status==='bounced'?'❌':co.inst_status==='unsubscribed'?'🚫':'📤';
@@ -2244,7 +2135,6 @@ async function openDrawer(id){
     ${co.confidence?`<div style="font-size:11px;color:var(--muted)">Confidence: <span style="color:${co.confidence==='high'?'var(--green)':co.confidence==='medium'?'var(--yellow)':'var(--red)'}">${co.confidence}</span> · ${esc(co.reason||'')}</div>`:''}
   </div>`;
 
-  // Company details
   html+=`<div class="dr-section"><h4>Company Details</h4><div class="dr-grid">`;
   const fields=[
     ['Website', co.website?`<a href="https://${esc(co.website)}" target="_blank">${esc(co.website)}</a>`:null, 'link'],
@@ -2261,11 +2151,10 @@ async function openDrawer(id){
   if(co.description)html+=`<div class="dr-field"><div class="dl">Description</div><div class="dv" style="font-size:12px;line-height:1.6">${esc(co.description)}</div></div>`;
   html+='</div>';
 
-  // ── CONTACTS SECTION ──
-  // Build unified numbered list: leadscraper contact first, then Clay contacts
-  const allContacts=[];
+  // ── CONTACTS SECTION ── (uses drContacts to avoid shadowing module-level allContacts)
+  const drContacts=[];
   if(co.contact_email||co.contact_first_name){
-    allContacts.push({
+    drContacts.push({
       source:'leadscraper',
       first_name:co.contact_first_name||'',
       last_name:co.contact_last_name||'',
@@ -2274,14 +2163,12 @@ async function openDrawer(id){
     });
   }
   if(contacts&&contacts.length){
-    contacts.forEach(c=>allContacts.push({...c,source:'clay'}));
+    contacts.forEach(c=>drContacts.push({...c,source:'clay'}));
   }
 
-  const totalC=allContacts.length;
-  const directC=allContacts.filter(c=>c.email&&!isGenericEmail(c.email)).length;
-  const genericC=allContacts.filter(c=>c.email&&isGenericEmail(c.email)).length;
+  const totalC=drContacts.length;
+  const directC=drContacts.filter(c=>c.email&&!isGenericEmail(c.email)).length;
 
-  // Header with count + quality flag
   let ctHeaderFlag='';
   if(totalC===0){
     ctHeaderFlag='<span style="background:rgba(239,68,68,.15);color:var(--red);font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:3px;margin-left:8px">❌ NO CONTACTS</span>';
@@ -2297,7 +2184,7 @@ async function openDrawer(id){
   if(totalC===0){
     html+=`<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:7px;padding:12px;font-size:12px;color:var(--red)">No contact emails found — add to Clay research list.</div>`;
   } else {
-    allContacts.forEach((c,i)=>{
+    drContacts.forEach((c,i)=>{
       const isGeneric=c.email&&isGenericEmail(c.email);
       const instStatus=c.instantly_status;
       const instColor=instStatus==='replied'?'var(--green)':instStatus==='active'?'var(--yellow)':instStatus==='bounced'||instStatus==='unsubscribed'?'var(--red)':'var(--muted)';
@@ -2328,6 +2215,17 @@ async function openDrawer(id){
   html+='</div>';
 
   document.getElementById('dr-body').innerHTML=html;
+
+  // ── FIX 3: Auto-check Instantly for contacts with no synced status ──
+  // Runs after innerHTML is set so the target elements exist in the DOM
+  if(sessionStorage.getItem('inst_key')){
+    drContacts.forEach((c,i)=>{
+      if(c.email&&!c.instantly_status){
+        const targetEl=document.getElementById('ict-'+i);
+        if(targetEl)instCheckContact(c.email,targetEl);
+      }
+    });
+  }
 }
 
 async function drawerSetVert(id,v){
@@ -2401,7 +2299,6 @@ let missingData=[];
 async function loadMissing(){
   if(!sbClient)return;
   document.getElementById('missing-ct').textContent='Loading...';
-  // Companies that are classified, have no leadscraper contact email, and have no matched Clay contacts
   const{data:companiesWithContacts}=await sbClient.from('contacts').select('company_id').eq('match_status','matched').not('company_id','is',null);
   const hasContactSet=new Set((companiesWithContacts||[]).map(r=>r.company_id));
   const{data:cos}=await sbClient.from('companies').select('id,name,website,state,vertical,categories').in('status',['done','needs_review']).is('contact_email',null);
@@ -2495,7 +2392,6 @@ function populateCampaignDropdowns(){
 async function renderCampaigns(){
   const el=document.getElementById('camp-list');
   if(!allCampaigns.length){el.innerHTML='<div class="empty">No campaigns yet. Create one above.</div>';return;}
-  // Get contact counts per campaign
   const{data:counts}=await sbClient.from('contacts').select('campaign_id').not('campaign_id','is',null);
   const countMap={};(counts||[]).forEach(r=>{countMap[r.campaign_id]=(countMap[r.campaign_id]||0)+1;});
   el.innerHTML=allCampaigns.map(c=>{
@@ -2538,18 +2434,16 @@ async function autoAssign(){
   if(!sbClient||!allCampaigns.length){toast('Create campaigns first','err');return;}
   const activeCampaigns=allCampaigns.filter(c=>c.status==='active');
   if(!activeCampaigns.length){toast('No active campaigns','err');return;}
-  // Load all matched, unsuppressed contacts with their company's vertical + state
   const{data:cts}=await sbClient.from('contacts').select('id,domain,companies(vertical,state)').eq('match_status','matched').not('suppressed','is',true);
   if(!cts||!cts.length){toast('No matched contacts to assign','info');return;}
   let assigned=0,unassigned=0;
   const updates=cts.map(ct=>{
     const vert=ct.companies?.vertical;
     const state=(ct.companies?.state||'').trim().toUpperCase();
-    // Find best matching campaign: prefer campaigns with state filter over "all states"
     const withStates=activeCampaigns.filter(c=>c.vertical===vert&&c.states);
     const withoutStates=activeCampaigns.filter(c=>c.vertical===vert&&!c.states);
     let match=withStates.find(c=>c.states.split(',').map(s=>s.trim().toUpperCase()).includes(state));
-    if(!match)match=withoutStates[0]; // fallback to any campaign for this vertical
+    if(!match)match=withoutStates[0];
     if(match){assigned++;return sbClient.from('contacts').update({campaign_id:match.id}).eq('id',ct.id);}
     else{unassigned++;return null;}
   }).filter(Boolean);
@@ -2632,7 +2526,6 @@ async function doExport(){
   msg.textContent=`✓ ${fname} — ${totalContacts.toLocaleString()} contacts across ${wb.SheetNames.length} campaigns`;
   toast('Excel downloaded','ok');
 
-  // Preview
   document.getElementById('exp-preview').innerHTML=`<div class="sg">
     ${allCampaigns.map(c=>`<div class="sc"><div class="l">${esc(c.name.slice(0,20))}</div><div class="v b" style="font-size:16px">—</div></div>`).join('')}
   </div>`;
