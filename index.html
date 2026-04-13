@@ -590,8 +590,9 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div class="sg">
         <div class="sc"><div class="l">Contacted</div><div class="v b" id="ist-contacted">—</div></div>
         <div class="sc"><div class="l">Not Contacted</div><div class="v" style="color:var(--cyan)" id="ist-not-contacted">—</div></div>
+        <div class="sc"><div class="l">Paused</div><div class="v" style="color:#a78bfa" id="ist-paused">—</div></div>
         <div class="sc"><div class="l">Completed</div><div class="v y" id="ist-completed">—</div></div>
-        <div class="sc"><div class="l">New (not enrolled)</div><div class="v" id="ist-none">—</div></div>
+        <div class="sc"><div class="l">New Leads</div><div class="v" id="ist-none">—</div></div>
         <div class="sc"><div class="l">Replied</div><div class="v g" id="ist-replied">—</div></div>
         <div class="sc"><div class="l">Bounced</div><div class="v r" id="ist-bounced">—</div></div>
         <div class="sc"><div class="l">Unsubscribed</div><div class="v r" id="ist-unsub">—</div></div>
@@ -1177,7 +1178,7 @@ async function instBulkSyncContacts(){
   const emailMap={};const domainMap={};const rawStatusDist={};
   let startingAfter=null,page=0,total=0;
   // Priority: replied/bounced/unsub win. active (in live sequence) > contacted (sequence done).
-  const statusPriority={replied:5,bounced:4,unsubscribed:4,contacted:3,completed:2,not_contacted:1};
+  const statusPriority={replied:5,bounced:4,unsubscribed:4,contacted:3,completed:2,paused:1,not_contacted:1};
   const campIdToName={};const campIdToStatus={};const campIdToCreated={};
   if(instCampData.length){
     instCampData.forEach(c=>{
@@ -1265,14 +1266,21 @@ async function instBulkSyncContacts(){
       // so add a 21-day recency check (covers a standard 4-step sequence).
       const campStatus=campIdToStatus[lead.campaign];
       const lastStepTs=lead.status_summary?.lastStep?.timestamp_executed||null;
-      // Instantly exact status codes:
-      // 0 = not_contacted (enrolled, sequence not started yet)
-      // 1 = contacted (sequence actively sending)
-      // 2 = paused
-      // 3 = completed (all steps sent)
-      // -1 = bounced, 4 = unsubscribed
-      const isNotContacted=rawSt===0||rawSt===2;
-      const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':rawSt===1?'contacted':isNotContacted?'not_contacted':'completed';
+      // Instantly v2 exact status codes (matches their UI labels):
+      // 0 = Not Contacted (in campaign, queue hasn't reached them yet)
+      // 1 = Contacted (sequence actively sending)
+      // 2 = Paused
+      // 3 = Completed (all sequence steps sent)
+      // -1 = Bounced, 4 = Unsubscribed
+      // null in our DB (no Instantly record) = New Lead
+      const status=isReplied?'replied'
+        :isBounced?'bounced'
+        :isUnsub?'unsubscribed'
+        :rawSt===1?'contacted'
+        :rawSt===3?'completed'
+        :rawSt===2?'paused'
+        :rawSt===0?'not_contacted'
+        :'completed'; // fallback for any other codes
       // Use lastStep timestamp as most reliable last_contact signal
       const campaign=campIdToName[lead.campaign]||lead.campaign||'';
       const ts=lastStepTs||lead.timestamp_last_contact||lead.timestamp_updated||null;
@@ -1409,10 +1417,11 @@ async function instBulkSyncContacts(){
 async function loadInstantlyStatusStats(){
   if(!sbClient)return;
   const[
-    {count:istContacted},{count:istNotContacted},{count:istCompleted},{count:istReplied},{count:istBounced},{count:istUnsub},{count:istNone},{count:istCoTouched}
+    {count:istContacted},{count:istNotContacted},{count:istPaused},{count:istCompleted},{count:istReplied},{count:istBounced},{count:istUnsub},{count:istNone},{count:istCoTouched}
   ]=await Promise.all([
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','contacted'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','not_contacted'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','paused'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','completed'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','replied'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','bounced'),
@@ -1424,6 +1433,8 @@ async function loadInstantlyStatusStats(){
   if(istContactedEl)istContactedEl.textContent=(istContacted||0).toLocaleString();
   const istNotContactedEl=document.getElementById('ist-not-contacted');
   if(istNotContactedEl)istNotContactedEl.textContent=(istNotContacted||0).toLocaleString();
+  const istPausedEl=document.getElementById('ist-paused');
+  if(istPausedEl)istPausedEl.textContent=(istPaused||0).toLocaleString();
   const istCompletedEl=document.getElementById('ist-completed');
   if(istCompletedEl)istCompletedEl.textContent=(istCompleted||0).toLocaleString();
   document.getElementById('ist-replied').textContent=(istReplied||0).toLocaleString();
@@ -1995,14 +2006,15 @@ function filterContacts(){
   const sbCt=(s)=>{
     if(!s)return'<span style="color:var(--muted);font-size:10px">—</span>';
     const map={
-      contacted:     ['var(--blue)',   'rgba(59,130,246,.15)',  'contacted'],
-      completed:     ['var(--yellow)', 'rgba(234,179,8,.12)',   'completed'],
-      not_contacted: ['var(--cyan)',   'rgba(6,182,212,.12)',   'not contacted'],
-      replied:       ['var(--green)',  'rgba(16,185,129,.12)',  'replied'],
-      bounced:       ['var(--red)',    'rgba(239,68,68,.12)',   'bounced'],
-      unsubscribed:  ['var(--red)',    'rgba(239,68,68,.12)',   'unsub'],
+      contacted:     ['var(--blue)',   'rgba(59,130,246,.15)', 'contacted'],
+      completed:     ['var(--yellow)', 'rgba(234,179,8,.12)',  'completed'],
+      not_contacted: ['var(--cyan)',   'rgba(6,182,212,.12)',  'not contacted'],
+      paused:        ['#a78bfa',       'rgba(167,139,250,.12)','paused'],
+      replied:       ['var(--green)',  'rgba(16,185,129,.12)', 'replied'],
+      bounced:       ['var(--red)',    'rgba(239,68,68,.12)',  'bounced'],
+      unsubscribed:  ['var(--red)',    'rgba(239,68,68,.12)',  'unsubscribed'],
     };
-    if(!s||s==='none'||s==='new')return'<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:var(--s2);color:var(--muted);border:1px solid var(--bd)">new — not in instantly</span>';
+    if(!s||s==='none'||s==='new')return'<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:var(--s2);color:var(--muted);border:1px solid var(--bd)">new lead</span>';
     const[c,bg,label]=map[s]||['var(--muted)','var(--s3)',s];
     return'<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:'+bg+';color:'+c+'">'+label+'</span>';
   };
@@ -2144,7 +2156,7 @@ async function openContactDrawer(id){
 
   const co=ct.companies;
   const instStatus=ct.instantly_status;
-  const instColor=instStatus==='replied'?'var(--green)':instStatus==='contacted'?'var(--blue)':instStatus==='completed'?'var(--yellow)':instStatus==='bounced'||instStatus==='unsubscribed'?'var(--red)':'var(--muted)';
+  const instColor=instStatus==='replied'?'var(--green)':instStatus==='contacted'?'var(--blue)':instStatus==='not_contacted'?'var(--cyan)':instStatus==='paused'?'#a78bfa':instStatus==='completed'?'var(--yellow)':instStatus==='bounced'||instStatus==='unsubscribed'?'var(--red)':'var(--muted)';
   const lastDate=ct.instantly_last_contacted?new Date(ct.instantly_last_contacted).toLocaleDateString():'—';
   const seqDoneDate=ct.sequence_completed_at||( ct.instantly_status==='completed'?ct.instantly_last_contacted:null);
   const daysSinceComplete=seqDoneDate?Math.floor((Date.now()-new Date(seqDoneDate))/86400000):null;
@@ -2153,10 +2165,11 @@ async function openContactDrawer(id){
 
   // Status explanation
   const statusDesc={
-    contacted:     'Currently in sequence — steps are being sent now.',
-    not_contacted: 'Enrolled in a sequence but sending has not started yet.',
-    completed:     'Sequence finished — eligible to re-enroll after 90 days.',
-    none:          'Not in Instantly — never added to any campaign.',
+    contacted:     'Sequence is actively sending emails.',
+    not_contacted: 'Enrolled in a campaign — in queue, sending not started yet.',
+    paused:        'Sequence is paused.',
+    completed:     'Sequence finished — all steps sent.',
+    none:          'New lead — never added to any Instantly campaign.',
     replied:     'Replied to at least one email.',
     bounced:     'Hard bounce — email address invalid or unreachable.',
     unsubscribed:'Opted out / unsubscribed.',
@@ -2171,8 +2184,8 @@ async function openContactDrawer(id){
     <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px">`;
   if(!instStatus){
     html+=`<div style="padding:10px 14px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;margin-bottom:8px">
-      <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px">NEW — NOT IN INSTANTLY</div>
-      <div style="font-size:12px;color:var(--muted)">Never added to any campaign. Import to Instantly to enroll in a sequence.</div>
+      <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px">NEW LEAD</div>
+      <div style="font-size:12px;color:var(--muted)">Not in Instantly — imported from leadscraper or Clay. Add to a campaign to start outreach.</div>
     </div>`;
   } else {
     const instBg=instStatus==='replied'?'rgba(16,185,129,.08)':instStatus==='active'?'rgba(234,179,8,.06)':'rgba(239,68,68,.08)';
