@@ -1145,10 +1145,9 @@ async function testProxy(){
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(),15000);
   try{
-    // Test direct API call (bypassing proxy)
-    const resp=await fetch('https://api.instantly.ai/api/v2/leads/list',{
+    const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{
       method:'POST',
-      headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'},
+      headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},
       body:JSON.stringify({limit:1,distinct_contacts:true}),
       signal:ctrl.signal
     });
@@ -1209,15 +1208,10 @@ async function instBulkSyncContacts(){
     const abortCtrl=new AbortController();
     const abortTimer=setTimeout(()=>abortCtrl.abort(),30000);
     try{
-      // Call Instantly API directly (bypasses proxy which hangs on POST requests)
-      // Bearer token auth is the v2 standard
       const instKey=sessionStorage.getItem('inst_key');
-      const resp=await fetch('https://api.instantly.ai/api/v2/leads/list',{
+      const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{
         method:'POST',
-        headers:{
-          'Authorization':`Bearer ${instKey}`,
-          'Content-Type':'application/json'
-        },
+        headers:{'X-Instantly-Key':instKey,'Content-Type':'application/json'},
         body:JSON.stringify(body),
         signal:abortCtrl.signal
       });
