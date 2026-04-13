@@ -577,6 +577,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
         <button class="btn btn-g btn-sm" onclick="instSyncSuppression()">⟳ Sync Suppression Only</button>
         <button class="btn btn-g btn-sm" onclick="instDebug()">Debug API</button>
         <button class="btn btn-r btn-sm" onclick="resetSyncData()">🗑 Reset Sync Data</button>
+        <button class="btn btn-r btn-sm" onclick="wipeAllData()" style="background:#7f1d1d;border-color:#991b1b">💣 Wipe All Data</button>
       </div>
       <div id="inst-sync-st" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></div>
       <div id="inst-last-sync" style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:4px"></div>
@@ -1044,6 +1045,51 @@ function sortInboxCards(){
   }
 }
 
+async function wipeAllData(){
+  if(!sbClient)return;
+  const answer=prompt('This will permanently delete ALL companies, contacts, campaigns and suppression data.\n\nType DELETE to confirm:');
+  if(answer!=='DELETE'){toast('Cancelled','info');return;}
+  const st=document.getElementById('inst-sync-st');
+  try{
+    st.textContent='Wiping contacts...';
+    // Must delete contacts first due to foreign key on company_id
+    let offset=0;
+    while(true){
+      const{data}=await sbClient.from('contacts').select('id').range(offset,offset+999);
+      if(!data||!data.length)break;
+      await sbClient.from('contacts').delete().in('id',data.map(r=>r.id));
+      offset+=data.length;
+      st.textContent=`Deleting contacts... ${offset.toLocaleString()}`;
+      if(data.length<1000)break;
+    }
+    st.textContent='Wiping companies...';
+    offset=0;
+    while(true){
+      const{data}=await sbClient.from('companies').select('id').range(offset,offset+999);
+      if(!data||!data.length)break;
+      await sbClient.from('companies').delete().in('id',data.map(r=>r.id));
+      offset+=data.length;
+      st.textContent=`Deleting companies... ${offset.toLocaleString()}`;
+      if(data.length<1000)break;
+    }
+    st.textContent='Wiping suppression list...';
+    await sbClient.from('suppression').delete().not('id','is',null);
+    // Reset all UI state
+    allBrowse=[];allContacts=[];allCampaigns=[];
+    ['ist-active-now','ist-contacted','ist-replied','ist-bounced','ist-unsub','ist-none','ist-co-touched',
+     'st-co','st-done','st-rv','st-pend','st-ct','st-match','st-assigned',
+     'nb-co','nb-ct','nb-camp'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='0';});
+    localStorage.removeItem('inst_last_sync');
+    document.getElementById('inst-last-sync').textContent='';
+    st.innerHTML='<span style="color:var(--green);font-weight:700">✓ All data wiped — ready for fresh sync</span>';
+    toast('Everything wiped','ok');
+    loadDash();
+  }catch(e){
+    st.textContent='Wipe error: '+e.message;
+    toast('Error: '+e.message,'err');
+  }
+}
+
 async function resetSyncData(){
   if(!sbClient)return;
   if(!confirm('This will:\n\n• Delete all Instantly-sourced companies\n• Clear Instantly status/campaign on all contacts\n• Clear all company inst_* fields\n\nProceed?'))return;
@@ -1083,7 +1129,8 @@ async function instBulkSyncContacts(){
   if(!sbClient||!sessionStorage.getItem('inst_key'))return;
   const st=document.getElementById('inst-sync-st');
   const prog=document.getElementById('inst-sync-progress');prog.style.display='block';
-  st.textContent='Pulling all leads from Instantly...';
+  st.textContent='Loading campaigns...';
+  document.getElementById('inst-pg-lbl').textContent='Starting...';
   const emailMap={};const domainMap={};const rawStatusDist={};
   let startingAfter=null,page=0,total=0;
   // Priority: replied/bounced/unsub win. active (in live sequence) > contacted (sequence done).
@@ -1106,12 +1153,27 @@ async function instBulkSyncContacts(){
   }
   // Log active campaigns for debugging
   const activeCampIds=new Set(Object.entries(campIdToStatus).filter(([,s])=>s===1).map(([id])=>id));
-  st.textContent=`Campaigns loaded — ${activeCampIds.size} active, ${Object.keys(campIdToName).length} total`;
+  st.textContent=`Campaigns loaded — ${activeCampIds.size} active, ${Object.keys(campIdToName).length} total. Pulling leads...`;
   while(page<500){
     const body={limit:100};if(startingAfter)body.starting_after=startingAfter;
     let data=null;
-    try{const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':sessionStorage.getItem('inst_key'),'Content-Type':'application/json'},body:JSON.stringify(body)});if(resp.ok)data=await resp.json();}catch(e){}
-    if(!data||!data.items?.length)break;
+    try{
+      const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':sessionStorage.getItem('inst_key'),'Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(!resp.ok){
+        const errText=await resp.text().catch(()=>'');
+        st.textContent=`Leads fetch failed: HTTP ${resp.status} — ${errText.slice(0,120)}`;
+        break;
+      }
+      data=await resp.json();
+    }catch(e){
+      st.textContent=`Leads fetch error: ${e.message}`;
+      console.error('Leads fetch error',e);
+      break;
+    }
+    if(!data||!data.items?.length){
+      if(page===0)st.textContent='No leads returned from Instantly — check proxy and API key';
+      break;
+    }
     data.items.forEach(lead=>{
       const email=(lead.email||'').toLowerCase().trim();if(!email)return;
       const domain=lead.company_domain||email.split('@')[1]||'';
@@ -1281,7 +1343,11 @@ async function loadInstantlyStatusStats(){
   document.getElementById('ist-bounced').textContent=(istBounced||0).toLocaleString();
   document.getElementById('ist-unsub').textContent=(istUnsub||0).toLocaleString();
   document.getElementById('ist-none').textContent=(istNone||0).toLocaleString();
-  const elCoTouched=document.getElementById('ist-co-touched');if(elCoTouched)elCoTouched.textContent=(istCoTouched||0).toLocaleString();
+  const elCoTouched=document.getElementById('ist-co-touched');
+  if(elCoTouched)elCoTouched.textContent=(istCoTouched||0).toLocaleString();
+  // Also update ist-active in case it was the old element
+  const elActiveNow=document.getElementById('ist-active-now');
+  if(elActiveNow)elActiveNow.textContent=(istActiveNow||0).toLocaleString();
 }
 
 async function toggleCampExpand(campId,campName){
