@@ -322,19 +322,80 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <div style="margin-top:10px"><button class="btn btn-o btn-sm" onclick="switchTab('instantly')">→ Go to Instantly Tab</button></div>
     </div>
 
-    <div class="sh"><h2>// Overview</h2><button class="btn btn-g btn-sm" onclick="loadDash()">↻ Refresh</button></div>
-    <div class="sg">
-      <div class="sc" style="cursor:pointer" onclick="switchTab('companies')"><div class="l">Companies</div><div class="v o" id="st-co">—</div></div>
-      <div class="sc" style="cursor:pointer" onclick="switchTab('companies');setCoFilter('done')"><div class="l">Classified</div><div class="v g" id="st-done">—</div></div>
-      <div class="sc" style="cursor:pointer" onclick="switchTab('companies');setCoFilter('needs_review')"><div class="l">Needs Review</div><div class="v y" id="st-rv">—</div></div>
-      <div class="sc" style="cursor:pointer" onclick="switchTab('companies');setCoFilter('pending')"><div class="l">Pending</div><div class="v" id="st-pend">—</div></div>
-      <div class="sc" style="cursor:pointer" onclick="switchTab('contacts')"><div class="l">Contacts</div><div class="v b" id="st-ct">—</div></div>
-      <div class="sc" style="cursor:pointer" onclick="switchTab('contacts')"><div class="l">Matched</div><div class="v g" id="st-match">—</div></div>
-      <div class="sc" style="cursor:pointer" onclick="switchTab('campaigns')"><div class="l">Assigned</div><div class="v b" id="st-assigned">—</div></div>
-      <div class="sc" style="cursor:pointer" onclick="switchTab('contacts');setTimeout(loadMissing,400)"><div class="l">Missing Contact</div><div class="v r" id="st-missing">—</div></div>
+    <div class="sh"><h2>// Outreach Pipeline</h2><button class="btn btn-g btn-sm" onclick="loadDash()">↻ Refresh</button></div>
+
+    <!-- PIPELINE FUNNEL -->
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0;margin-bottom:20px;border:1px solid var(--bd);border-radius:10px;overflow:hidden">
+      <div class="pipe-stage" onclick="switchTab('companies')" style="cursor:pointer;padding:16px 14px;background:var(--s2);border-right:1px solid var(--bd);text-align:center">
+        <div style="font-size:20px;margin-bottom:4px">🏢</div>
+        <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text)" id="pipe-companies">—</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:3px">Companies Found</div>
+      </div>
+      <div class="pipe-stage" onclick="switchTab('contacts')" style="cursor:pointer;padding:16px 14px;background:var(--s2);border-right:1px solid var(--bd);text-align:center">
+        <div style="font-size:20px;margin-bottom:4px">📋</div>
+        <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--blue)" id="pipe-contacts">—</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:3px">Contacts Found</div>
+      </div>
+      <div class="pipe-stage" onclick="exportReadyForInstantly()" style="cursor:pointer;padding:16px 14px;background:var(--s3);border-right:1px solid var(--bd);text-align:center;position:relative" title="Click to export these contacts for Instantly">
+        <div style="font-size:20px;margin-bottom:4px">⚡</div>
+        <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green)" id="pipe-ready">—</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--green);letter-spacing:.06em;text-transform:uppercase;margin-top:3px">Ready for Instantly ↓</div>
+      </div>
+      <div class="pipe-stage" style="padding:16px 14px;background:var(--s2);border-right:1px solid var(--bd);text-align:center">
+        <div style="font-size:20px;margin-bottom:4px">📤</div>
+        <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--yellow)" id="pipe-contacted">—</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:3px">In Sequences</div>
+      </div>
+      <div class="pipe-stage" style="padding:16px 14px;background:var(--s2);border-right:1px solid var(--bd);text-align:center">
+        <div style="font-size:20px;margin-bottom:4px">✅</div>
+        <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text)" id="pipe-completed">—</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:3px">Sequences Done</div>
+      </div>
+      <div class="pipe-stage" onclick="exportReenrollEligible()" style="cursor:pointer;padding:16px 14px;background:var(--s3);text-align:center" title="Click to export re-enroll eligible contacts">
+        <div style="font-size:20px;margin-bottom:4px">🔄</div>
+        <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--purple)" id="pipe-reenroll">—</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--purple);letter-spacing:.06em;text-transform:uppercase;margin-top:3px">Re-enroll Ready ↓</div>
+      </div>
     </div>
+
+    <!-- QUICK ACTIONS -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
+      <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px">
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⚠ Needs Attention</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.8">
+          <div style="display:flex;justify-content:space-between"><span>No email found</span><span style="font-family:var(--mono);color:var(--red)" id="attn-no-email">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Not yet classified</span><span style="font-family:var(--mono);color:var(--yellow)" id="attn-unclassified">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Bounced contacts</span><span style="font-family:var(--mono);color:var(--red)" id="attn-bounced">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Unsubscribed</span><span style="font-family:var(--mono);color:var(--red)" id="attn-unsub">—</span></div>
+        </div>
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px">
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">📊 Coverage</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.8">
+          <div style="display:flex;justify-content:space-between"><span>Companies w/ contact</span><span style="font-family:var(--mono);color:var(--green)" id="cov-has-contact">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Companies no email</span><span style="font-family:var(--mono);color:var(--red)" id="cov-no-contact">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Contacts matched</span><span style="font-family:var(--mono);color:var(--green)" id="cov-matched">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Contacts unmatched</span><span style="font-family:var(--mono);color:var(--muted)" id="cov-unmatched">—</span></div>
+        </div>
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px">
+        <div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🚀 Quick Exports</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button class="btn btn-o btn-sm" onclick="exportReadyForInstantly()" style="justify-content:flex-start">⚡ Ready for Instantly</button>
+          <button class="btn btn-g btn-sm" onclick="exportReenrollEligible()" style="justify-content:flex-start">🔄 Re-enroll Eligible (90d+)</button>
+          <button class="btn btn-g btn-sm" onclick="switchTab('contacts');setTimeout(loadMissing,400)" style="justify-content:flex-start">🔍 Find Missing Contacts</button>
+        </div>
+      </div>
+    </div>
+
     <div class="sh"><h2>// Vertical Breakdown</h2></div>
     <div class="sg" id="vert-sg"></div>
+
+    <!-- KEEP old stat IDs for compatibility -->
+    <div style="display:none">
+      <span id="st-co"></span><span id="st-done"></span><span id="st-rv"></span><span id="st-pend"></span>
+      <span id="st-ct"></span><span id="st-match"></span><span id="st-assigned"></span><span id="st-missing"></span>
+    </div>
   </div>
 
   <!-- ══ COMPANIES ══ -->
@@ -830,7 +891,12 @@ function setupNav(){
       document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
       if(btn.dataset.tab==='dash')loadDash();
       if(btn.dataset.tab==='companies')loadBrowse();      // auto-load browse on tab switch
-      if(btn.dataset.tab==='contacts')loadContactsTable(); // auto-load contacts on tab switch
+      if(btn.dataset.tab==='contacts'){
+    // Reset status filter to All Statuses when switching to contacts tab
+    const finst=document.getElementById('ct-finst');
+    if(finst&&finst.value==='none')finst.value=''; // clear "New Lead" filter if it was left active
+    loadContactsTable();
+  }
       if(btn.dataset.tab==='campaigns')loadCampaigns();
       if(btn.dataset.tab==='instantly'){instLoadCampaigns();instLoadInboxes();loadInstantlyStatusStats();}
       if(btn.dataset.tab==='export')loadSuppressionStats();
@@ -1576,6 +1642,41 @@ async function loadDash(){
   document.getElementById('nb-co').textContent=(coTotal||0).toLocaleString();
   document.getElementById('nb-ct').textContent=(ctTotal||0).toLocaleString();
 
+  // ── PIPELINE FUNNEL ──
+  const[
+    {count:ctContacted},{count:ctCompleted},{count:ctReady},{count:ctReeenroll},
+    {count:ctBounced},{count:ctUnsub},{count:ctUnmatched},{count:coWithContact},{count:coNoContact}
+  ]=await Promise.all([
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','contacted'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','completed'),
+    // Ready = has email, null instantly_status, not suppressed
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).is('instantly_status',null).not('email','is',null).not('suppressed','is',true),
+    // Re-enroll = completed sequences where last contact > 90 days ago
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','completed').lt('instantly_last_contacted', new Date(Date.now()-90*86400000).toISOString()),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','bounced'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','unsubscribed'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('match_status','unmatched'),
+    // Companies with at least one contact
+    sbClient.from('contacts').select('company_id',{count:'exact',head:true}).not('company_id','is',null).eq('match_status','matched'),
+    sbClient.from('companies').select('*',{count:'exact',head:true}).is('contact_email',null),
+  ]);
+
+  const setEl=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=typeof val==='number'?val.toLocaleString():val;};
+  setEl('pipe-companies', coTotal||0);
+  setEl('pipe-contacts', ctTotal||0);
+  setEl('pipe-ready', ctReady||0);
+  setEl('pipe-contacted', (ctContacted||0));
+  setEl('pipe-completed', ctCompleted||0);
+  setEl('pipe-reenroll', ctReeenroll||0);
+  setEl('attn-no-email', coNoContact||0);
+  setEl('attn-unclassified', coPend||0);
+  setEl('attn-bounced', ctBounced||0);
+  setEl('attn-unsub', ctUnsub||0);
+  setEl('cov-has-contact', coWithContact||0);
+  setEl('cov-no-contact', coNoContact||0);
+  setEl('cov-matched', ctMatch||0);
+  setEl('cov-unmatched', ctUnmatched||0);
+
   // DIAGNOSTIC: contacts exist but no companies
   const banner=document.getElementById('diag-banner');
   if((coTotal||0)===0&&(ctTotal||0)>0){
@@ -1972,6 +2073,17 @@ async function loadContactsTable(){
   filterContacts();
 }
 
+function clearContactFilters(){
+  document.getElementById('ct-srch').value='';
+  document.getElementById('ct-finst').value='';
+  document.getElementById('ct-fsrc').value='';
+  document.getElementById('ct-fvert').value='';
+  document.getElementById('ct-fmatch').value='';
+  const reenrollEl=document.getElementById('ct-freenroll');
+  if(reenrollEl)reenrollEl.value='';
+  filterContacts();
+}
+
 function sortContactsBy(col){
   if(contactsSort.col===col)contactsSort.dir=contactsSort.dir==='asc'?'desc':'asc';
   else{contactsSort.col=col;contactsSort.dir='asc';}
@@ -2018,7 +2130,16 @@ function filterContacts(){
   const el=document.getElementById('ct-tbl');
   const cntEl=document.getElementById('ct-count');
   if(cntEl)cntEl.textContent=rows.length.toLocaleString()+' contacts';
-  if(!rows.length){el.innerHTML='<div class="empty">No contacts match — run Sync in the Instantly tab to populate.</div>';return;}
+  if(!rows.length){
+    const hasFilters=q||instF||srcF||vertF||matchF||reenrollF;
+    const msg=allContacts.length===0
+      ?'No contacts yet — run Sync in the Instantly tab to populate.'
+      :hasFilters
+        ?`No contacts match the current filters. <a href="#" onclick="clearContactFilters();return false;" style="color:var(--purple)">Clear filters</a>`
+        :'No contacts found.';
+    el.innerHTML=`<div class="empty">${msg}</div>`;
+    return;
+  }
 
   const sa=col=>{const active=contactsSort.col===col;const arrow=contactsSort.dir==='asc'?' ↑':' ↓';return active?`<span style="color:var(--purple)">${arrow}</span>`:'<span style="color:var(--muted2)"> ⇅</span>';};
   const th=(col,lbl,w='')=>`<th class="sort${contactsSort.col===col?' active-sort':''}"${w?` style="width:${w}"`:''}  onclick="sortContactsBy('${col}')">${lbl}${sa(col)}</th>`;
@@ -2134,6 +2255,107 @@ async function autoAssign(){
 async function importSuppression(){if(!sbClient)return;const raw=document.getElementById('supp-paste').value.trim();if(!raw){toast('Paste emails or domains first','err');return;}const reason=document.getElementById('supp-reason').value;const lines=raw.split('\n').map(l=>l.trim().toLowerCase()).filter(Boolean);const toIns=lines.map(val=>{const type=val.includes('@')?'email':'domain';const value=type==='email'?val:normalizeDomain(val);return{value,type,reason};}).filter(r=>r.value);if(!toIns.length)return;for(let i=0;i<toIns.length;i+=500){const{error}=await sbClient.from('suppression').upsert(toIns.slice(i,i+500),{onConflict:'value'});if(error){toast(error.message,'err');return;}}document.getElementById('supp-st').textContent=`✓ ${toIns.length} entries imported`;document.getElementById('supp-paste').value='';toast(`${toIns.length} suppression entries added`,'ok');loadSuppressionStats();}
 async function loadSuppressionStats(){if(!sbClient)return;const{count:total}=await sbClient.from('suppression').select('id',{count:'exact',head:true});const{count:suppCt}=await sbClient.from('contacts').select('id',{count:'exact',head:true}).eq('suppressed',true);document.getElementById('supp-total').textContent=total||0;document.getElementById('supp-contacts').textContent=suppCt||0;}
 async function runSuppressionCheck(){if(!sbClient)return;const{data:suppList}=await sbClient.from('suppression').select('value,type');const suppEmails=new Set(suppList.filter(s=>s.type==='email').map(s=>s.value));const suppDomains=new Set(suppList.filter(s=>s.type==='domain').map(s=>s.value));const{data:contacts}=await sbClient.from('contacts').select('id,email,domain').not('suppressed','is',true);const toSupp=(contacts||[]).filter(c=>suppEmails.has((c.email||'').toLowerCase())||suppDomains.has(c.domain||''));if(!toSupp.length){toast('No new contacts to suppress','info');return;}for(let i=0;i<toSupp.length;i+=200)await sbClient.from('contacts').update({suppressed:true,suppressed_reason:'suppression_list'}).in('id',toSupp.slice(i,i+200).map(c=>c.id));toast(`${toSupp.length} contacts marked suppressed`,'ok');loadSuppressionStats();loadDash();}
+
+async function exportReadyForInstantly(){
+  if(!sbClient)return;
+  toast('Building Ready for Instantly export...','info');
+  // Ready = has email, never been in Instantly (null status), not suppressed
+  let allReady=[];let offset=0;
+  while(true){
+    const{data}=await sbClient.from('contacts')
+      .select('*,companies(name,vertical,state,website,domain)')
+      .is('instantly_status',null)
+      .not('email','is',null)
+      .not('suppressed','is',true)
+      .range(offset,offset+999);
+    if(!data||!data.length)break;
+    allReady.push(...data);
+    if(data.length<1000)break;
+    offset+=1000;
+  }
+  if(!allReady.length){toast('No contacts ready for Instantly — import leadscraper/Clay contacts first','info');return;}
+  const wb=XLSX.utils.book_new();
+  // Group by vertical for separate sheets
+  const byVert={};
+  allReady.forEach(c=>{
+    const v=c.companies?.vertical||'unclassified';
+    if(!byVert[v])byVert[v]=[];
+    byVert[v].push(c);
+  });
+  Object.entries(byVert).sort((a,b)=>b[1].length-a[1].length).forEach(([vert,contacts])=>{
+    const rows=contacts.map(c=>({
+      Email:c.email||'',
+      First_Name:c.first_name||'',
+      Last_Name:c.last_name||'',
+      Title:c.title||'',
+      Company_Name:c.company_name||c.companies?.name||'',
+      Website:c.website||c.companies?.website||c.companies?.domain||'',
+      State:c.companies?.state||'',
+      Vertical:V[vert]?.label||vert,
+      Source:c.source_file||'',
+      Match:c.match_status||'',
+    }));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    ws['!cols']=[{wch:28},{wch:14},{wch:14},{wch:22},{wch:30},{wch:25},{wch:6},{wch:22},{wch:14},{wch:10}];
+    const sheetName=(V[vert]?.label||vert).slice(0,31).replace(/[\/?*[\]]/g,'');
+    XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  });
+  // Also one combined sheet
+  const allRows=allReady.map(c=>({
+    Email:c.email||'',First_Name:c.first_name||'',Last_Name:c.last_name||'',
+    Title:c.title||'',Company_Name:c.company_name||c.companies?.name||'',
+    Website:c.website||c.companies?.website||'',State:c.companies?.state||'',
+    Vertical:V[c.companies?.vertical]?.label||c.companies?.vertical||'',
+    Source:c.source_file||'',
+  }));
+  const wsAll=XLSX.utils.json_to_sheet(allRows);
+  XLSX.utils.book_append_sheet(wb,wsAll,'ALL');
+  const fname=`ready-for-instantly-${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb,fname);
+  toast(`✓ ${allReady.length.toLocaleString()} contacts exported across ${Object.keys(byVert).length} verticals`,'ok');
+}
+
+async function exportReenrollEligible(){
+  if(!sbClient)return;
+  toast('Building re-enroll export...','info');
+  const cutoff=new Date(Date.now()-90*86400000).toISOString();
+  let allRe=[];let offset=0;
+  while(true){
+    const{data}=await sbClient.from('contacts')
+      .select('*,companies(name,vertical,state,website)')
+      .eq('instantly_status','completed')
+      .lt('instantly_last_contacted',cutoff)
+      .not('suppressed','is',true)
+      .range(offset,offset+999);
+    if(!data||!data.length)break;
+    allRe.push(...data);
+    if(data.length<1000)break;
+    offset+=1000;
+  }
+  if(!allRe.length){toast('No contacts eligible for re-enrollment yet (need 90+ days since last sequence)','info');return;}
+  const wb=XLSX.utils.book_new();
+  const byVert={};
+  allRe.forEach(c=>{const v=c.companies?.vertical||'unclassified';if(!byVert[v])byVert[v]=[];byVert[v].push(c);});
+  Object.entries(byVert).sort((a,b)=>b[1].length-a[1].length).forEach(([vert,contacts])=>{
+    const rows=contacts.map(c=>{
+      const daysSince=c.instantly_last_contacted?Math.floor((Date.now()-new Date(c.instantly_last_contacted))/86400000):null;
+      return{
+        Email:c.email||'',First_Name:c.first_name||'',Last_Name:c.last_name||'',
+        Title:c.title||'',Company_Name:c.company_name||c.companies?.name||'',
+        Website:c.website||c.companies?.website||'',State:c.companies?.state||'',
+        Vertical:V[vert]?.label||vert,
+        Last_Campaign:c.instantly_campaign||'',
+        Last_Contacted:c.instantly_last_contacted?new Date(c.instantly_last_contacted).toLocaleDateString():'',
+        Days_Since:daysSince||'',
+      };
+    }).sort((a,b)=>(b.Days_Since||0)-(a.Days_Since||0));
+    const ws=XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb,ws,(V[vert]?.label||vert).slice(0,31).replace(/[\/?*[\]]/g,''));
+  });
+  const fname=`reenroll-eligible-${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb,fname);
+  toast(`✓ ${allRe.length.toLocaleString()} re-enroll eligible contacts exported`,'ok');
+}
 
 async function doExport(){
   if(!sbClient)return;if(!allCampaigns.length){toast('No campaigns defined','err');return;}
