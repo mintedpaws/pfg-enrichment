@@ -183,7 +183,7 @@ select option{background:var(--s2);}
 /* ── TABLE ── */
 .tw{background:var(--s1);border:1px solid var(--bd);border-radius:9px;overflow:hidden;}
 table{width:100%;border-collapse:collapse;}
-thead th{padding:8px 12px;text-align:left;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;background:var(--s2);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5;}
+thead th{padding:8px 12px;text-align:left;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;background:var(--s2);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5;box-shadow:0 1px 0 var(--bd);}
 thead th.sort{cursor:pointer;user-select:none;transition:color .1s;}
 thead th.sort:hover{color:var(--text);}
 thead th.sort.active-sort{color:var(--purple);}
@@ -380,7 +380,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap"><input type="checkbox" id="br-noweb" onchange="filterBrowse()" style="width:auto"/> No website</label>
     </div>
     <div id="br-count" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px"></div>
-    <div class="tw" id="br-table" style="overflow-x:auto;margin-bottom:24px"><div class="empty">Loading companies...</div></div>
+    <div class="tw" id="br-table" style="overflow:auto;max-height:calc(100vh - 260px);margin-bottom:24px"><div class="empty">Loading companies...</div></div>
 
     <!-- IMPORT & CLASSIFY — collapsible -->
     <div class="collapsible-hdr" id="ch-import" onclick="toggleCollapsible('import')">
@@ -495,7 +495,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <select id="ct-fmatch" onchange="filterContacts()"><option value="">All Match Status</option><option value="matched">Matched to Company</option><option value="unmatched">Unmatched</option></select>
       <select id="ct-freenroll" onchange="filterContacts()"><option value="">All Re-enroll</option><option value="ready">✓ Ready (90+ days)</option><option value="soon">⚡ Soon (60-89 days)</option><option value="recent">Recent (&lt;60 days)</option></select>
     </div>
-    <div class="tw" id="ct-tbl" style="overflow-x:auto;margin-bottom:24px"><div class="empty">Loading contacts...</div></div>
+    <div class="tw" id="ct-tbl" style="overflow:auto;max-height:calc(100vh - 260px);margin-bottom:24px"><div class="empty">Loading contacts...</div></div>
 
     <!-- IMPORT CLAY CONTACTS — collapsible -->
     <div class="collapsible-hdr" id="ch-ctimport" onclick="toggleCollapsible('ctimport')">
@@ -1125,10 +1125,13 @@ async function instBulkSyncContacts(){
       const isBounced=rawSt===-1;
       const isUnsub=rawSt===4;
       const isReplied=lead.email_reply_count>0;
-      // Cross-reference lead's campaign status to distinguish active vs contacted
-      // If campaign is status=1 (active/sending), this lead is currently in sequence
+      // Cross-reference campaign status to distinguish active vs contacted.
+      // Instantly often keeps campaigns in status=1 even after all emails sent,
+      // so add a 21-day recency check (covers a standard 4-step sequence).
       const campStatus=campIdToStatus[lead.campaign];
-      const isCurrentlyActive=campStatus===1; // campaign is live right now
+      const lastContactTs=lastStepTs||lead.timestamp_last_contact||null;
+      const daysSinceContact=lastContactTs?Math.floor((Date.now()-new Date(lastContactTs))/86400000):999;
+      const isCurrentlyActive=campStatus===1&&daysSinceContact<=21;
       const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':isCurrentlyActive?'active':'contacted';
       // Use lastStep timestamp as most reliable last_contact signal
       const lastStepTs=lead.status_summary?.lastStep?.timestamp_executed||null;
@@ -1243,12 +1246,14 @@ async function instBulkSyncContacts(){
   // Build mapped status distribution from emailMap
   const mappedDist2={};Object.values(emailMap).forEach(l=>{mappedDist2[l.status]=(mappedDist2[l.status]||0)+1;});
   const rawDistStr=Object.entries(rawStatusDist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`raw ${k}:${v}`).join(' · ');
+  const activeNote=`Active = campaign status=1 AND last contact ≤21 days ago`;
   const mappedDistStr=Object.entries(mappedDist2).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}:${v}`).join(' · ');
   const msg=`✓ ${contactsUpserted.toLocaleString()} contacts · ${matched.toLocaleString()} matched · ${newCoCount} companies`;
   st.innerHTML=`<div style="font-family:var(--mono);font-size:11px;line-height:1.8">
     <div style="color:var(--green);font-weight:700">${msg}</div>
     <div style="color:var(--muted);margin-top:4px">Raw from Instantly: ${rawDistStr}</div>
     <div style="color:var(--yellow);margin-top:2px">Stored as: ${mappedDistStr}</div>
+    <div style="color:var(--muted2);margin-top:2px;font-size:10px">${activeNote}</div>
   </div>`;
   toast(msg,'ok');
   // FIX 1: Refresh browse table if loaded
