@@ -489,12 +489,13 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     </div>
     <div class="fr">
       <input type="text" id="ct-srch" placeholder="Search email, name, company..." oninput="filterContacts()"/>
-      <select id="ct-finst" onchange="filterContacts()"><option value="">All Statuses</option><option value="contacted">Contacted (sending)</option><option value="not_contacted">Not Contacted (enrolled)</option><option value="completed">Completed</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option><option value="none">New (not in Instantly)</option></select>
+      <select id="ct-finst" onchange="filterContacts()"><option value="">All Statuses</option><option value="contacted">Contacted</option><option value="paused">Paused</option><option value="completed">Completed</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option><option value="none">New Lead</option></select>
       <select id="ct-fsrc" onchange="filterContacts()"><option value="">All Sources</option><option value="instantly">Instantly</option><option value="leadscraper">Leadscraper</option><option value="clay">Clay</option></select>
       <select id="ct-fvert" onchange="filterContacts()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option></select>
       <select id="ct-fmatch" onchange="filterContacts()"><option value="">All Match Status</option><option value="matched">Matched to Company</option><option value="unmatched">Unmatched</option></select>
       <select id="ct-freenroll" onchange="filterContacts()"><option value="">All Re-enroll</option><option value="ready">✓ Ready (90+ days)</option><option value="soon">⚡ Soon (60-89 days)</option><option value="recent">Recent (&lt;60 days)</option></select>
     </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-bottom:8px">ℹ "Not Contacted" counts (leads enrolled but not yet sent to) are shown per-campaign in the Instantly tab — Instantly's API doesn't expose queued contacts individually.</div>
     <div class="tw" id="ct-tbl" style="overflow:auto;max-height:calc(100vh - 260px);margin-bottom:24px"><div class="empty">Loading contacts...</div></div>
 
     <!-- IMPORT CLAY CONTACTS — collapsible -->
