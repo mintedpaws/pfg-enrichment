@@ -1490,37 +1490,40 @@ async function instDebug(){
   st.textContent='Sampling 50 leads to inspect status codes...';
   const key=sessionStorage.getItem('inst_key');if(!key){st.textContent='No key found';return;}
   try{
-    const r=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},body:JSON.stringify({limit:50})});
+    // Test 1: default fetch (touched leads)
+    const r=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},body:JSON.stringify({limit:50,distinct_contacts:true})});
     const data=await r.json();
     const items=data.items||[];
     if(!items.length){st.textContent='No leads found';return;}
-    const dist={};const mappedDist={};
-    items.forEach(l=>{
-      const rawS=String(l.status!=null?l.status:'null');
-      dist[rawS]=(dist[rawS]||0)+1;
-      const rSt=l.status;
-      const mapped=l.email_reply_count>0?'replied':rSt===-1?'bounced':rSt===4?'unsubscribed':rSt===3?'completed':rSt===1||rSt===2?'active':'active(unknown='+rSt+')';
-      mappedDist[mapped]=(mappedDist[mapped]||0)+1;
-    });
-    const distStr=Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`raw status=${k}: ${v}`).join(' | ');
-    const mappedStr=Object.entries(mappedDist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}: ${v}`).join(' | ');
-    // Show sending inboxes from status_summary.lastStep.from
-    const inboxDist={};
-    items.forEach(l=>{const from=l.status_summary?.lastStep?.from||'unknown';inboxDist[from]=(inboxDist[from]||0)+1;});
-    const sumStr=Object.entries(inboxDist).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`${k}: ${v}`).join(' | ');
+    const dist={};
+    items.forEach(l=>{const s=String(l.status!=null?l.status:'null');dist[s]=(dist[s]||0)+1;});
+    const distStr=Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`status=${k}:${v}`).join(' | ');
+    // Test 2: explicitly request status=0 (not contacted / queued leads)
+    let zeroResult='testing...';
+    try{
+      const r0=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},body:JSON.stringify({limit:10,distinct_contacts:true,filter:{statuses:[0]}})});
+      const d0=await r0.json();
+      const cnt=(d0.items||[]).length;
+      zeroResult=cnt>0?`✓ ${cnt} queued leads found — status=0 IS returned by API`:`✗ 0 leads returned — API may not expose queued leads`;
+    }catch(e){zeroResult='error: '+e.message;}
+    // Test 3: try without distinct_contacts
+    let rawResult='testing...';
+    try{
+      const r1=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},body:JSON.stringify({limit:10})});
+      const d1=await r1.json();
+      const rd={};(d1.items||[]).forEach(l=>{const s=String(l.status??'null');rd[s]=(rd[s]||0)+1;});
+      rawResult=Object.entries(rd).map(([k,v])=>`status=${k}:${v}`).join(' | ')||'empty';
+    }catch(e){rawResult='error: '+e.message;}
     const lead=items[0];
-    const keyList=Object.keys(lead).join(', ');
     st.innerHTML=`<div style="font-family:var(--mono);font-size:11px;line-height:1.8;padding:10px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;margin-top:8px">
-      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Raw status codes (${items.length} leads sampled):</div>
-      <div style="color:var(--muted);margin-bottom:6px">${distStr}</div>
-      <div style="color:var(--green);font-weight:700;margin-bottom:4px">→ Maps to these statuses:</div>
-      <div style="color:var(--text);margin-bottom:10px">${mappedStr}</div>
-      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Sending inboxes (from status_summary.lastStep.from):</div>
-      <div style="color:var(--green);margin-bottom:10px">${sumStr}</div>
-      <div style="color:var(--cyan);font-weight:700;margin-bottom:4px">All lead fields:</div>
-      <div style="color:var(--muted);margin-bottom:10px">${keyList}</div>
-      <div style="color:var(--purple);font-weight:700;margin-bottom:4px">First lead:</div>
-      <div style="color:var(--text)">status=${JSON.stringify(lead.status)} · lastStep.from="${lead.status_summary?.lastStep?.from||'n/a'}" · lastStep.ts="${lead.status_summary?.lastStep?.timestamp_executed||'n/a'}" · reply_count=${lead.email_reply_count}</div>
+      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Status codes (${items.length} leads, distinct_contacts=true):</div>
+      <div style="color:var(--text);margin-bottom:8px">${distStr}</div>
+      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Test: filter by status=0 (queued/not contacted):</div>
+      <div style="color:var(--cyan);margin-bottom:8px">${zeroResult}</div>
+      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Raw (no distinct_contacts), first 10:</div>
+      <div style="color:var(--muted);margin-bottom:8px">${rawResult}</div>
+      <div style="color:var(--purple);font-weight:700;margin-bottom:4px">First lead sample:</div>
+      <div style="color:var(--text)">status=${JSON.stringify(lead.status)} · email_reply_count=${lead.email_reply_count} · campaign=${lead.campaign?.slice(-8)||'?'}</div>
     </div>`;
   }catch(e){st.textContent='Error: '+e.message;}
 }
