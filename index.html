@@ -1145,9 +1145,10 @@ async function testProxy(){
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(),15000);
   try{
-    const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{
+    // Test direct API call (bypassing proxy)
+    const resp=await fetch('https://api.instantly.ai/api/v2/leads/list',{
       method:'POST',
-      headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},
+      headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'},
       body:JSON.stringify({limit:1,distinct_contacts:true}),
       signal:ctrl.signal
     });
@@ -1206,27 +1207,41 @@ async function instBulkSyncContacts(){
     let data=null;
     st.textContent=`Fetching page ${page+1}... (${total.toLocaleString()} leads so far)`;
     const abortCtrl=new AbortController();
-    const abortTimer=setTimeout(()=>abortCtrl.abort(),30000); // 30s timeout
+    const abortTimer=setTimeout(()=>abortCtrl.abort(),30000);
     try{
-      const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{
+      // Call Instantly API directly (bypasses proxy which hangs on POST requests)
+      // Bearer token auth is the v2 standard
+      const instKey=sessionStorage.getItem('inst_key');
+      const resp=await fetch('https://api.instantly.ai/api/v2/leads/list',{
         method:'POST',
-        headers:{'X-Instantly-Key':sessionStorage.getItem('inst_key'),'Content-Type':'application/json'},
+        headers:{
+          'Authorization':`Bearer ${instKey}`,
+          'Content-Type':'application/json'
+        },
         body:JSON.stringify(body),
         signal:abortCtrl.signal
       });
       clearTimeout(abortTimer);
       if(!resp.ok){
         const errText=await resp.text().catch(()=>'');
-        st.textContent=`Leads fetch failed on page ${page+1}: HTTP ${resp.status} — ${errText.slice(0,200)}`;
-        toast(`Leads fetch HTTP ${resp.status}`,'err');
+        // If CORS blocked, fall back to proxy
+        st.textContent=`Direct API failed (HTTP ${resp.status}) — ${errText.slice(0,150)}`;
+        toast(`Leads API HTTP ${resp.status}`,'err');
         break;
       }
       data=await resp.json();
     }catch(e){
       clearTimeout(abortTimer);
-      const errMsg=e.name==='AbortError'?`Timed out on page ${page+1} after 30s — proxy may be slow or down`:e.message;
-      st.textContent=`Leads fetch error: ${errMsg}`;
-      toast(errMsg,'err');
+      if(e.name==='AbortError'){
+        st.textContent=`Timed out on page ${page+1} after 30s`;
+        toast('Sync timed out','err');
+      } else if(e.message?.includes('CORS')||e.message?.includes('Failed to fetch')){
+        st.textContent=`CORS blocked — need proxy. Error: ${e.message}`;
+        toast('CORS error — proxy needed','err');
+      } else {
+        st.textContent=`Leads error: ${e.message}`;
+        toast(e.message,'err');
+      }
       console.error('Leads fetch error',e);
       break;
     }
