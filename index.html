@@ -1333,8 +1333,15 @@ async function instBulkSyncContacts(){
       };
     });
     for(let i=0;i<newCos.length;i+=500){
-      const{data:inserted,error}=await sbClient.from('companies').upsert(newCos.slice(i,i+500),{onConflict:'domain',ignoreDuplicates:true}).select('id,domain');
-      if(error){toast('Company upsert error: '+error.message,'err');}
+      const chunk=newCos.slice(i,i+500);
+      st.textContent=`Creating companies ${i+1}–${Math.min(i+500,newCos.length)} of ${newCos.length}...`;
+      const{data:inserted,error}=await sbClient.from('companies').insert(chunk).select('id,domain');
+      if(error){
+        st.textContent=`Company insert error: ${error.message} (code:${error.code})`;
+        toast('Company insert error: '+error.message,'err');
+        console.error('Company insert error',error);
+        // Continue anyway — try next batch
+      }
       (inserted||[]).forEach(co=>{if(co.domain)domainToCompanyId[co.domain]=co.id;});
     }
     st.textContent=`Created ${missingDomains.length} companies · Upserting contacts...`;
