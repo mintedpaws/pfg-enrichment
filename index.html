@@ -1070,7 +1070,9 @@ async function instBulkSyncContacts(){
   st.textContent='Pulling all leads from Instantly...';
   const emailMap={};const domainMap={};
   let startingAfter=null,page=0,total=0;
-  const statusPriority={replied:4,bounced:3,unsubscribed:3,active:1};
+  // Priority: replied/bounced/unsub always win. active(in-sequence) > completed.
+  // completed = sequence done, no reply. active = currently being sent to.
+  const statusPriority={replied:5,bounced:4,unsubscribed:4,active:2,completed:1};
   const campIdToName={};
   if(instCampData.length)instCampData.forEach(c=>{campIdToName[c.id]=c.name||c.id;});
   if(!instCampData.length){const cd=await instFetch('/api/v2/campaigns',{limit:100});(cd?.items||[]).forEach(c=>{campIdToName[c.id]=c.name||c.id;});}
@@ -1099,7 +1101,12 @@ async function instBulkSyncContacts(){
       const campaign=campIdToName[lead.campaign]||lead.campaign||'';
       const ts=lastStepTs||lead.timestamp_last_contact||lead.timestamp_updated||null;
       const ex=emailMap[email];
-      if(!ex||(statusPriority[status]||0)>(statusPriority[ex.status]||0)){emailMap[email]={email,status,campaign,last_contacted:ts,first_name:lead.first_name||'',last_name:lead.last_name||'',company_name:lead.company_name||'',domain,source:'instantly'};}
+      const newPri=statusPriority[status]||0;
+      const exPri=statusPriority[ex?.status]||0;
+      const tsNewer=!ex||(ts&&ex.last_contacted&&ts>ex.last_contacted);
+      if(!ex||newPri>exPri||(newPri===exPri&&tsNewer)){
+        emailMap[email]={email,status,campaign,last_contacted:ts,first_name:lead.first_name||'',last_name:lead.last_name||'',company_name:lead.company_name||'',domain,source:'instantly'};
+      }
       if(domain){if(!domainMap[domain])domainMap[domain]={status,campaign,last_contacted:ts,count:1};else{domainMap[domain].count++;if((statusPriority[status]||0)>(statusPriority[domainMap[domain].status]||0)){domainMap[domain].status=status;domainMap[domain].campaign=campaign;}if(ts&&(!domainMap[domain].last_contacted||ts>domainMap[domain].last_contacted))domainMap[domain].last_contacted=ts;}}
     });
     total+=data.items.length;st.textContent=`Pulled ${total.toLocaleString()} leads...`;document.getElementById('inst-pg-lbl').textContent=`${total.toLocaleString()} leads`;
@@ -1238,9 +1245,16 @@ async function instDebug(){
     const data=await r.json();
     const items=data.items||[];
     if(!items.length){st.textContent='No leads found';return;}
-    const dist={};
-    items.forEach(l=>{const s=String(l.status!=null?l.status:'null');dist[s]=(dist[s]||0)+1;});
-    const distStr=Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`status=${k}: ${v} leads`).join(' | ');
+    const dist={};const mappedDist={};
+    items.forEach(l=>{
+      const rawS=String(l.status!=null?l.status:'null');
+      dist[rawS]=(dist[rawS]||0)+1;
+      const rSt=l.status;
+      const mapped=l.email_reply_count>0?'replied':rSt===-1?'bounced':rSt===4?'unsubscribed':rSt===3?'completed':rSt===1||rSt===2?'active':'active(unknown='+rSt+')';
+      mappedDist[mapped]=(mappedDist[mapped]||0)+1;
+    });
+    const distStr=Object.entries(dist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`raw status=${k}: ${v}`).join(' | ');
+    const mappedStr=Object.entries(mappedDist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}: ${v}`).join(' | ');
     // Show sending inboxes from status_summary.lastStep.from
     const inboxDist={};
     items.forEach(l=>{const from=l.status_summary?.lastStep?.from||'unknown';inboxDist[from]=(inboxDist[from]||0)+1;});
@@ -1248,8 +1262,10 @@ async function instDebug(){
     const lead=items[0];
     const keyList=Object.keys(lead).join(', ');
     st.innerHTML=`<div style="font-family:var(--mono);font-size:11px;line-height:1.8;padding:10px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;margin-top:8px">
-      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Status codes (${items.length} leads):</div>
-      <div style="color:var(--text);margin-bottom:6px">${distStr}</div>
+      <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Raw status codes (${items.length} leads sampled):</div>
+      <div style="color:var(--muted);margin-bottom:6px">${distStr}</div>
+      <div style="color:var(--green);font-weight:700;margin-bottom:4px">→ Maps to these statuses:</div>
+      <div style="color:var(--text);margin-bottom:10px">${mappedStr}</div>
       <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">Sending inboxes (from status_summary.lastStep.from):</div>
       <div style="color:var(--green);margin-bottom:10px">${sumStr}</div>
       <div style="color:var(--cyan);font-weight:700;margin-bottom:4px">All lead fields:</div>
