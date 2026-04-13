@@ -10,7 +10,7 @@
 :root{
   --bg:#1a1040;--s1:#1e1350;--s2:#231660;--s3:#2a1a70;--s4:#301e80;
   --bd:#3d2a8a;--bd2:#4a35a0;
-  --text:#e2e8f0;--muted:#8b7fc0;--muted2:#2d1f6e;
+  --text:#f1f5ff;--muted:#a89fd4;--muted2:#3d2f80;
   --accent:#7c3aed;--blue:#3b82f6;--green:#10b981;
   --yellow:#f59e0b;--red:#ef4444;--cyan:#06b6d4;--purple:#a78bfa;
   --accent2:#6d28d9;--glow:rgba(167,139,250,.2);
@@ -58,7 +58,7 @@ header{display:flex;align-items:center;gap:10px;padding:0 20px;height:52px;flex-
 nav{display:flex;padding:0 20px;background:var(--s1);border-bottom:1px solid var(--bd);flex-shrink:0;overflow-x:auto;}
 .nb{padding:12px 16px;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:500;color:var(--muted);transition:color .15s,border-color .15s;white-space:nowrap;}
 .nb:hover{color:var(--text);}
-.nb.active{color:var(--purple);border-bottom-color:var(--purple);font-weight:600;}
+.nb.active{color:#c4b5fd;border-bottom-color:#c4b5fd;font-weight:600;}
 .nb .cnt{display:inline-block;padding:1px 6px;border-radius:9px;font-family:var(--mono);font-size:9px;font-weight:700;margin-left:5px;background:var(--s3);color:var(--muted);}
 .nb.active .cnt{background:rgba(124,58,237,.2);color:var(--purple);}
 
@@ -113,7 +113,7 @@ main{flex:1;overflow-y:auto;padding:24px;}
 .sc{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:14px 16px;transition:border-color .15s,box-shadow .15s;}
 .sc:hover{border-color:var(--bd2);box-shadow:0 0 15px rgba(124,58,237,.1);}
 .sc .l{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:5px;}
-.sc .v{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--text);}
+.sc .v{font-family:var(--mono);font-size:24px;font-weight:700;color:#f1f5ff;}
 .sc .v.o{color:var(--purple)}.sc .v.g{color:var(--green)}.sc .v.y{color:var(--yellow)}.sc .v.r{color:var(--red)}.sc .v.b{color:var(--blue)}
 
 /* ── FIELDS ── */
@@ -189,9 +189,9 @@ thead th.sort:hover{color:var(--text);}
 thead th.sort.active-sort{color:var(--purple);}
 tbody tr{border-bottom:1px solid var(--bd);transition:background .1s;}
 tbody tr:last-child{border-bottom:none;}
-tbody tr:hover{background:var(--s2);}
+tbody tr:hover{background:rgba(124,58,237,.08);}
 tbody tr.selected{background:rgba(249,115,22,.07);}
-td{padding:9px 12px;font-size:12px;vertical-align:middle;}
+td{padding:9px 12px;font-size:12px;vertical-align:middle;color:#e8eaf8;}
 .mn{font-family:var(--mono);font-size:10px;color:var(--muted);}
 td.clickable{cursor:pointer;}
 td.clickable:hover{color:var(--accent);}
@@ -285,6 +285,13 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     <div id="cdot"></div>
     <div class="kf"><label>Instantly Key</label><input type="password" id="cfg-inst" placeholder="inst_..." oninput="saveInstKey()"/></div>
     <div id="inst-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:all .3s"></div>
+    <div style="position:relative;flex:1;max-width:320px">
+      <input type="text" id="global-search" placeholder="Search companies..." 
+        style="background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:7px 12px 7px 32px;color:var(--text);font-family:var(--sans);font-size:13px;outline:none;width:100%;transition:border-color .15s"
+        oninput="globalSearchInput(this.value)" onfocus="showGlobalSearch()" onblur="setTimeout(hideGlobalSearch,200)"/>
+      <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;pointer-events:none">🔍</span>
+      <div id="global-search-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--s1);border:1px solid var(--bd2);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.4);z-index:200;max-height:360px;overflow-y:auto"></div>
+    </div>
     <div class="hdr-user">
       <span class="user-email" id="user-email"></span>
       <button class="btn btn-g btn-sm" onclick="signOut()">Sign Out</button>
@@ -482,7 +489,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     </div>
     <div class="fr">
       <input type="text" id="ct-srch" placeholder="Search email, name, company..." oninput="filterContacts()"/>
-      <select id="ct-finst" onchange="filterContacts()"><option value="">All Statuses</option><option value="active">Active (in sequence)</option><option value="completed">Contacted (done)</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option><option value="none">Never Contacted</option></select>
+      <select id="ct-finst" onchange="filterContacts()"><option value="">All Statuses</option><option value="active">⚡ In Sequence Now</option><option value="contacted">Contacted (done)</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option><option value="none">Never Contacted</option></select>
       <select id="ct-fsrc" onchange="filterContacts()"><option value="">All Sources</option><option value="instantly">Instantly</option><option value="leadscraper">Leadscraper</option><option value="clay">Clay</option></select>
       <select id="ct-fvert" onchange="filterContacts()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option></select>
       <select id="ct-fmatch" onchange="filterContacts()"><option value="">All Match Status</option><option value="matched">Matched to Company</option><option value="unmatched">Unmatched</option></select>
@@ -579,8 +586,9 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       </div>
       <hr class="dv"/>
       <div class="sg">
-        <div class="sc"><div class="l">In Sequence</div><div class="v b" id="ist-active">—</div></div>
-        <div class="sc"><div class="l">Contacted (Done)</div><div class="v y" id="ist-none">—</div></div>
+        <div class="sc"><div class="l">In Sequence Now</div><div class="v b" id="ist-active-now">—</div></div>
+        <div class="sc"><div class="l">Contacted (done)</div><div class="v y" id="ist-contacted">—</div></div>
+        <div class="sc"><div class="l">Never Contacted</div><div class="v" id="ist-none">—</div></div>
         <div class="sc"><div class="l">Replied</div><div class="v g" id="ist-replied">—</div></div>
         <div class="sc"><div class="l">Bounced</div><div class="v r" id="ist-bounced">—</div></div>
         <div class="sc"><div class="l">Unsubscribed</div><div class="v r" id="ist-unsub">—</div></div>
@@ -1038,29 +1046,37 @@ function sortInboxCards(){
 
 async function resetSyncData(){
   if(!sbClient)return;
-  if(!confirm('This will:\n\n• Delete all companies created from Instantly (source_file=instantly)\n• Reset instantly_status on all remaining contacts to null\n• Clear all company inst_* fields\n\nRun Sync Contacts + Companies after to rebuild fresh.\n\nProceed?'))return;
+  if(!confirm('This will:\n\n• Delete all Instantly-sourced companies\n• Clear Instantly status/campaign on all contacts\n• Clear all company inst_* fields\n\nProceed?'))return;
   const st=document.getElementById('inst-sync-st');
-  st.textContent='Deleting Instantly-sourced companies...';
-  await sbClient.from('companies').delete().eq('source_file','instantly');
-  st.textContent='Resetting contact Instantly status...';
-  // Reset in batches
-  let cleared=0;
-  while(true){
-    const{data}=await sbClient.from('contacts').select('id').not('instantly_status','is',null).limit(500);
-    if(!data||!data.length)break;
-    await sbClient.from('contacts').update({instantly_status:null,instantly_campaign:null,instantly_last_contacted:null,sequence_completed_at:null,company_id:null,match_status:'unmatched'}).in('id',data.map(r=>r.id));
-    cleared+=data.length;
-    st.textContent=`Cleared ${cleared} contacts...`;
+  try{
+    st.textContent='Deleting Instantly-sourced companies...';
+    await sbClient.from('companies').delete().eq('source_file','instantly');
+    st.textContent='Clearing contact Instantly fields (bulk)...';
+    // Single bulk update — no loop, no pagination
+    await sbClient.from('contacts').update({
+      instantly_status:null,
+      instantly_campaign:null,
+      instantly_last_contacted:null,
+      company_id:null,
+      match_status:'unmatched'
+    }).not('email','is',null);
+    st.textContent='Clearing company inst_* fields...';
+    await sbClient.from('companies').update({
+      inst_status:null,inst_campaign:null,
+      inst_last_contacted:null,inst_contacted_count:0
+    }).not('id','is',null);
+    ['ist-active','ist-replied','ist-bounced','ist-unsub','ist-none','ist-co-touched'].forEach(id=>{
+      const el=document.getElementById(id);if(el)el.textContent='—';
+    });
+    localStorage.removeItem('inst_last_sync');
+    document.getElementById('inst-last-sync').textContent='';
+    st.textContent='✓ Reset complete — run Sync Contacts + Companies';
+    toast('Reset complete','ok');
+    loadDash();
+  }catch(e){
+    st.textContent='Reset error: '+e.message;
+    toast('Reset error: '+e.message,'err');
   }
-  st.textContent='Resetting company inst_* fields...';
-  await sbClient.from('companies').update({inst_status:null,inst_campaign:null,inst_last_contacted:null,inst_contacted_count:0}).not('inst_status','is',null);
-  // Reset stats display
-  ['ist-active','ist-replied','ist-bounced','ist-unsub','ist-none','ist-co-touched'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='—';});
-  localStorage.removeItem('inst_last_sync');
-  document.getElementById('inst-last-sync').textContent='';
-  st.textContent='✓ Reset complete — now run Sync Contacts + Companies with the latest code';
-  toast('Sync data wiped — ready for fresh sync','ok');
-  loadDash();
 }
 
 async function instBulkSyncContacts(){
@@ -1068,14 +1084,29 @@ async function instBulkSyncContacts(){
   const st=document.getElementById('inst-sync-st');
   const prog=document.getElementById('inst-sync-progress');prog.style.display='block';
   st.textContent='Pulling all leads from Instantly...';
-  const emailMap={};const domainMap={};
+  const emailMap={};const domainMap={};const rawStatusDist={};
   let startingAfter=null,page=0,total=0;
-  // Priority: replied/bounced/unsub always win. active(in-sequence) > completed.
-  // completed = sequence done, no reply. active = currently being sent to.
-  const statusPriority={replied:5,bounced:4,unsubscribed:4,active:2,completed:1};
-  const campIdToName={};
-  if(instCampData.length)instCampData.forEach(c=>{campIdToName[c.id]=c.name||c.id;});
-  if(!instCampData.length){const cd=await instFetch('/api/v2/campaigns',{limit:100});(cd?.items||[]).forEach(c=>{campIdToName[c.id]=c.name||c.id;});}
+  // Priority: replied/bounced/unsub win. active (in live sequence) > contacted (sequence done).
+  const statusPriority={replied:5,bounced:4,unsubscribed:4,active:3,contacted:1};
+  const campIdToName={};const campIdToStatus={};const campIdToCreated={};
+  if(instCampData.length){
+    instCampData.forEach(c=>{
+      campIdToName[c.id]=c.name||c.id;
+      campIdToStatus[c.id]=c.status; // 1=active 2=paused 3=completed
+      campIdToCreated[c.id]=c.timestamp_created||c.created_at||null;
+    });
+  }
+  if(!instCampData.length){
+    const cd=await instFetch('/api/v2/campaigns',{limit:100});
+    (cd?.items||[]).forEach(c=>{
+      campIdToName[c.id]=c.name||c.id;
+      campIdToStatus[c.id]=c.status;
+      campIdToCreated[c.id]=c.timestamp_created||c.created_at||null;
+    });
+  }
+  // Log active campaigns for debugging
+  const activeCampIds=new Set(Object.entries(campIdToStatus).filter(([,s])=>s===1).map(([id])=>id));
+  st.textContent=`Campaigns loaded — ${activeCampIds.size} active, ${Object.keys(campIdToName).length} total`;
   while(page<500){
     const body={limit:100};if(startingAfter)body.starting_after=startingAfter;
     let data=null;
@@ -1088,14 +1119,17 @@ async function instBulkSyncContacts(){
       // 1=Active(in sequence) 2=Paused 3=Completed(sequence done) 4=Unsubscribed -1=Bounced
       // status_summary field has human-readable label
       const rawSt=lead.status;
+      rawStatusDist[String(rawSt==null?'null':rawSt)]=(rawStatusDist[String(rawSt==null?'null':rawSt)]||0)+1;
       // Confirmed Instantly v2 status codes: 1=Active 2=Paused 3=Completed -1=Bounced 4=Unsubscribed
       // status_summary only contains lastStep metadata — not used for status detection
       const isBounced=rawSt===-1;
       const isUnsub=rawSt===4;
       const isReplied=lead.email_reply_count>0;
-      const isCompleted=rawSt===3;  // sequence finished, no reply
-      const isActive=rawSt===1||rawSt===2;  // currently in sequence or paused
-      const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':isCompleted?'completed':'active';
+      // Cross-reference lead's campaign status to distinguish active vs contacted
+      // If campaign is status=1 (active/sending), this lead is currently in sequence
+      const campStatus=campIdToStatus[lead.campaign];
+      const isCurrentlyActive=campStatus===1; // campaign is live right now
+      const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':isCurrentlyActive?'active':'contacted';
       // Use lastStep timestamp as most reliable last_contact signal
       const lastStepTs=lead.status_summary?.lastStep?.timestamp_executed||null;
       const campaign=campIdToName[lead.campaign]||lead.campaign||'';
@@ -1104,8 +1138,22 @@ async function instBulkSyncContacts(){
       const newPri=statusPriority[status]||0;
       const exPri=statusPriority[ex?.status]||0;
       const tsNewer=!ex||(ts&&ex.last_contacted&&ts>ex.last_contacted);
+      const campaignName=campIdToName[lead.campaign]||lead.campaign||'';
+      const campaignId=lead.campaign||null;
+      const sequenceStart=lead.timestamp_created||lead.upload_method_date||null; // best proxy for when added to campaign
       if(!ex||newPri>exPri||(newPri===exPri&&tsNewer)){
-        emailMap[email]={email,status,campaign,last_contacted:ts,first_name:lead.first_name||'',last_name:lead.last_name||'',company_name:lead.company_name||'',domain,source:'instantly'};
+        emailMap[email]={
+          email,status,
+          campaign:campaignName,
+          campaign_name:campaignName,
+          campaign_id:campaignId,
+          sequence_start:status==='active'?sequenceStart:null,
+          last_contacted:ts,
+          first_name:lead.first_name||'',
+          last_name:lead.last_name||'',
+          company_name:lead.company_name||'',
+          domain,source:'instantly'
+        };
       }
       if(domain){if(!domainMap[domain])domainMap[domain]={status,campaign,last_contacted:ts,count:1};else{domainMap[domain].count++;if((statusPriority[status]||0)>(statusPriority[domainMap[domain].status]||0)){domainMap[domain].status=status;domainMap[domain].campaign=campaign;}if(ts&&(!domainMap[domain].last_contacted||ts>domainMap[domain].last_contacted))domainMap[domain].last_contacted=ts;}}
     });
@@ -1146,8 +1194,8 @@ async function instBulkSyncContacts(){
       };
     });
     for(let i=0;i<newCos.length;i+=500){
-      const{data:inserted,error}=await sbClient.from('companies').insert(newCos.slice(i,i+500)).select('id,domain');
-      if(error){toast('Company insert error: '+error.message,'err');}
+      const{data:inserted,error}=await sbClient.from('companies').upsert(newCos.slice(i,i+500),{onConflict:'domain',ignoreDuplicates:true}).select('id,domain');
+      if(error){toast('Company upsert error: '+error.message,'err');}
       (inserted||[]).forEach(co=>{if(co.domain)domainToCompanyId[co.domain]=co.id;});
     }
     st.textContent=`Created ${missingDomains.length} companies · Upserting contacts...`;
@@ -1157,7 +1205,27 @@ async function instBulkSyncContacts(){
   const allLeads=Object.values(emailMap);let contactsUpserted=0;
   for(let i=0;i<allLeads.length;i+=200){
     const chunk=allLeads.slice(i,i+200);
-    const rows=chunk.map(lead=>{const companyId=domainToCompanyId[lead.domain]||null;return{email:lead.email,first_name:lead.first_name||null,last_name:lead.last_name||null,company_name:lead.company_name||null,domain:lead.domain||null,company_id:companyId,match_status:companyId?'matched':'unmatched',instantly_status:lead.status,instantly_campaign:lead.campaign||null,instantly_last_contacted:lead.last_contacted||null,sequence_completed_at:lead.status==='completed'?lead.last_contacted:null,source_file:'instantly',suppressed:lead.status==='bounced'||lead.status==='unsubscribed'||false,suppressed_reason:lead.status==='bounced'||lead.status==='unsubscribed'?lead.status:null};});
+    const rows=chunk.map(lead=>{
+      const companyId=domainToCompanyId[lead.domain]||null;
+      return{
+        email:lead.email,
+        first_name:lead.first_name||null,
+        last_name:lead.last_name||null,
+        company_name:lead.company_name||null,
+        domain:lead.domain||null,
+        company_id:companyId,
+        match_status:companyId?'matched':'unmatched',
+        instantly_status:lead.status,
+        instantly_campaign:lead.campaign_name||null, // resolved name
+        instantly_campaign_id:lead.campaign_id||null,
+        instantly_last_contacted:lead.last_contacted||null,
+        instantly_sequence_start:lead.status==='active'?lead.sequence_start:null,
+        sequence_completed_at:lead.status==='contacted'?lead.last_contacted:null,
+        source_file:'instantly',
+        suppressed:lead.status==='bounced'||lead.status==='unsubscribed'||false,
+        suppressed_reason:lead.status==='bounced'||lead.status==='unsubscribed'?lead.status:null
+      };
+    });
     await sbClient.from('contacts').upsert(rows,{onConflict:'email',ignoreDuplicates:false});
     contactsUpserted+=chunk.length;
     const p=Math.round(contactsUpserted/allLeads.length*100);
@@ -1172,8 +1240,17 @@ async function instBulkSyncContacts(){
   const syncTime=new Date().toLocaleString();localStorage.setItem('inst_last_sync',syncTime);document.getElementById('inst-last-sync').textContent=`Last synced: ${syncTime}`;
   const matched=Object.values(emailMap).filter(l=>domainToCompanyId[l.domain]).length;
   const newCoCount=missingDomains.length;
-  const msg=`✓ ${contactsUpserted.toLocaleString()} contacts · ${matched.toLocaleString()} matched · ${newCoCount} new companies created`;
-  st.textContent=msg;toast(msg,'ok');
+  // Build mapped status distribution from emailMap
+  const mappedDist2={};Object.values(emailMap).forEach(l=>{mappedDist2[l.status]=(mappedDist2[l.status]||0)+1;});
+  const rawDistStr=Object.entries(rawStatusDist).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`raw ${k}:${v}`).join(' · ');
+  const mappedDistStr=Object.entries(mappedDist2).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}:${v}`).join(' · ');
+  const msg=`✓ ${contactsUpserted.toLocaleString()} contacts · ${matched.toLocaleString()} matched · ${newCoCount} companies`;
+  st.innerHTML=`<div style="font-family:var(--mono);font-size:11px;line-height:1.8">
+    <div style="color:var(--green);font-weight:700">${msg}</div>
+    <div style="color:var(--muted);margin-top:4px">Raw from Instantly: ${rawDistStr}</div>
+    <div style="color:var(--yellow);margin-top:2px">Stored as: ${mappedDistStr}</div>
+  </div>`;
+  toast(msg,'ok');
   // FIX 1: Refresh browse table if loaded
   if(allBrowse.length)loadBrowse();
 }
@@ -1181,21 +1258,24 @@ async function instBulkSyncContacts(){
 async function loadInstantlyStatusStats(){
   if(!sbClient)return;
   const[
-    {count:istActive},{count:istCompleted},{count:istReplied},{count:istBounced},{count:istUnsub},{count:istNone},{count:istCoTouched}
+    {count:istActiveNow},{count:istContacted},{count:istReplied},{count:istBounced},{count:istUnsub},{count:istNone},{count:istCoTouched}
   ]=await Promise.all([
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','active'),
-    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','completed'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','contacted'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','replied'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','bounced'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','unsubscribed'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).is('instantly_status',null),
     sbClient.from('companies').select('*',{count:'exact',head:true}).not('inst_status','is',null),
   ]);
-  document.getElementById('ist-active').textContent=(istActive||0).toLocaleString();
+  const istActiveNowEl=document.getElementById('ist-active-now');
+  if(istActiveNowEl)istActiveNowEl.textContent=(istActiveNow||0).toLocaleString();
+  const istContactedEl=document.getElementById('ist-contacted');
+  if(istContactedEl)istContactedEl.textContent=(istContacted||0).toLocaleString();
   document.getElementById('ist-replied').textContent=(istReplied||0).toLocaleString();
   document.getElementById('ist-bounced').textContent=(istBounced||0).toLocaleString();
   document.getElementById('ist-unsub').textContent=(istUnsub||0).toLocaleString();
-  document.getElementById('ist-none').textContent=((istNone||0)+(istCompleted||0)).toLocaleString();
+  document.getElementById('ist-none').textContent=(istNone||0).toLocaleString();
   const elCoTouched=document.getElementById('ist-co-touched');if(elCoTouched)elCoTouched.textContent=(istCoTouched||0).toLocaleString();
 }
 
@@ -1725,7 +1805,7 @@ function filterContacts(){
   if(matchF)rows=rows.filter(r=>r.match_status===matchF);
   if(reenrollF){
     rows=rows.filter(r=>{
-      if(r.instantly_status!=='completed')return false;
+      if(r.instantly_status!=='contacted')return false;
       const dt=r.sequence_completed_at||r.instantly_last_contacted;if(!dt)return false;
       const days=Math.floor((Date.now()-new Date(dt))/86400000);
       if(reenrollF==='ready')return days>=90;
@@ -1757,11 +1837,11 @@ function filterContacts(){
   const sbCt=(s)=>{
     if(!s)return'<span style="color:var(--muted);font-size:10px">—</span>';
     const map={
-      active:  ['var(--blue)',   'rgba(59,130,246,.12)',  'active'],
-      completed:['var(--yellow)','rgba(234,179,8,.12)',   'contacted'],
-      replied: ['var(--green)',  'rgba(16,185,129,.12)',  'replied'],
-      bounced: ['var(--red)',    'rgba(239,68,68,.12)',   'bounced'],
-      unsubscribed:['var(--red)','rgba(239,68,68,.12)',   'unsub'],
+      active:   ['var(--blue)',  'rgba(59,130,246,.15)', '⚡ active'],
+      contacted:['var(--yellow)','rgba(234,179,8,.12)',  'contacted'],
+      replied:  ['var(--green)', 'rgba(16,185,129,.12)', 'replied'],
+      bounced:  ['var(--red)',   'rgba(239,68,68,.12)',  'bounced'],
+      unsubscribed:['var(--red)','rgba(239,68,68,.12)',  'unsub'],
     };
     const[c,bg,label]=map[s]||['var(--muted)','var(--s3)',s];
     return'<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:'+bg+';color:'+c+'">'+label+'</span>';
@@ -1792,7 +1872,7 @@ function filterContacts(){
       const reenrollColor=daysSince>=90?'var(--green)':daysSince>=60?'var(--yellow)':'var(--muted)';
       seqDoneCell=`<span style="font-family:var(--mono);font-size:10px;color:${reenrollColor}">${doneDate.toLocaleDateString()}</span>`
         +(daysSince>=60?`<span style="font-family:var(--mono);font-size:9px;display:block;color:${reenrollColor}">${daysSince}d ago${daysSince>=90?' ✓ re-enroll':''}</span>`:'');
-    } else if(r.instantly_status==='completed'&&r.instantly_last_contacted){
+    } else if(r.instantly_status==='contacted'&&r.instantly_last_contacted){
       const doneDate=new Date(r.instantly_last_contacted);
       const daysSince=Math.floor((Date.now()-doneDate)/86400000);
       const reenrollColor=daysSince>=90?'var(--green)':daysSince>=60?'var(--yellow)':'var(--muted)';
@@ -1904,7 +1984,7 @@ async function openContactDrawer(id){
 
   const co=ct.companies;
   const instStatus=ct.instantly_status;
-  const instColor=instStatus==='replied'?'var(--green)':instStatus==='active'?'var(--yellow)':instStatus==='bounced'||instStatus==='unsubscribed'?'var(--red)':'var(--muted)';
+  const instColor=instStatus==='replied'?'var(--green)':instStatus==='active'?'var(--blue)':instStatus==='contacted'?'var(--yellow)':instStatus==='bounced'||instStatus==='unsubscribed'?'var(--red)':'var(--muted)';
   const lastDate=ct.instantly_last_contacted?new Date(ct.instantly_last_contacted).toLocaleDateString():'—';
   const seqDoneDate=ct.sequence_completed_at||( ct.instantly_status==='completed'?ct.instantly_last_contacted:null);
   const daysSinceComplete=seqDoneDate?Math.floor((Date.now()-new Date(seqDoneDate))/86400000):null;
@@ -1913,13 +1993,13 @@ async function openContactDrawer(id){
 
   // Status explanation
   const statusDesc={
-    active:     'Currently active in a sequence.',
-    completed:  'Sequence finished — all steps sent, no reply yet.',
-    replied:    'Replied to at least one email.',
-    bounced:    'Hard bounce — email address invalid or unreachable.',
-    unsubscribed:'Opted out / unsubscribed from emails.',
+    active:      'Currently in an active sending sequence.',
+    contacted:   'Sequence finished — eligible to re-enroll after 90 days.',
+    replied:     'Replied to at least one email.',
+    bounced:     'Hard bounce — email address invalid or unreachable.',
+    unsubscribed:'Opted out / unsubscribed.',
   };
-  const statusLabel={active:'ACTIVE',completed:'CONTACTED',replied:'REPLIED',bounced:'BOUNCED',unsubscribed:'UNSUBSCRIBED'};
+  const statusLabel={active:'IN SEQUENCE',contacted:'CONTACTED',replied:'REPLIED',bounced:'BOUNCED',unsubscribed:'UNSUBSCRIBED'};
 
   let html='';
 
@@ -1939,6 +2019,7 @@ async function openContactDrawer(id){
         <span style="font-size:11px;color:var(--muted)">${statusDesc[instStatus]||''}</span>
       </div>
       ${ct.instantly_campaign?`<div style="font-size:12px;margin-bottom:4px">Campaign: <strong style="color:var(--text)">${esc(ct.instantly_campaign)}</strong></div>`:''}
+      ${ct.instantly_sequence_start&&instStatus==='active'?`<div style="font-size:12px;color:var(--muted);margin-bottom:4px">Sequence started: <strong style="color:var(--cyan)">${new Date(ct.instantly_sequence_start).toLocaleDateString()}</strong></div>`:''}
       <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Last contacted: <strong style="color:var(--text)">${lastDate}</strong></div>
       ${seqDoneDate?`<div style="font-size:12px;margin-bottom:4px">Sequence finished: <strong style="color:var(--text)">${new Date(seqDoneDate).toLocaleDateString()}</strong> <span style="color:var(--muted)">(${daysSinceComplete}d ago)</span></div>`:''}
       ${reenrollReady?'<div style="margin-top:8px;padding:6px 10px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);border-radius:5px;font-size:11px;color:var(--green);font-weight:600">✓ Ready to re-enroll — 90+ days since last sequence</div>':''}
@@ -2048,6 +2129,71 @@ function closeContactDrawer(){
   document.getElementById('contact-drawer').classList.remove('open');
   document.getElementById('drawer-overlay').classList.remove('open');
   currentContactId=null;
+}
+
+
+/* ══════════════════════════════════════════
+   GLOBAL COMPANY SEARCH
+══════════════════════════════════════════ */
+let globalSearchTimer=null;
+function showGlobalSearch(){document.getElementById('global-search-dropdown').style.display='block';}
+function hideGlobalSearch(){document.getElementById('global-search-dropdown').style.display='none';}
+
+function globalSearchInput(val){
+  clearTimeout(globalSearchTimer);
+  const dd=document.getElementById('global-search-dropdown');
+  if(!val||val.length<2){dd.innerHTML='<div style="padding:12px 14px;color:var(--muted);font-size:12px">Type to search companies...</div>';return;}
+  dd.innerHTML='<div style="padding:12px 14px;color:var(--muted);font-size:12px">Searching...</div>';
+  globalSearchTimer=setTimeout(()=>runGlobalSearch(val),200);
+}
+
+async function runGlobalSearch(q){
+  const dd=document.getElementById('global-search-dropdown');
+  if(!sbClient||!q)return;
+  const qLow=q.toLowerCase();
+  // Search in cached allBrowse first
+  let results=allBrowse.filter(r=>
+    (r.name||'').toLowerCase().includes(qLow)||
+    (r.website||'').toLowerCase().includes(qLow)||
+    (r.domain||'').toLowerCase().includes(qLow)
+  ).slice(0,8);
+  // If not loaded yet, query DB
+  if(!allBrowse.length){
+    const{data}=await sbClient.from('companies')
+      .select('id,name,website,domain,vertical,state,status,inst_status')
+      .or(`name.ilike.%${q}%,website.ilike.%${q}%,domain.ilike.%${q}%`)
+      .limit(8);
+    results=data||[];
+  }
+  if(!results.length){
+    dd.innerHTML='<div style="padding:12px 14px;color:var(--muted);font-size:12px">No companies found for "'+esc(q)+'"</div>';
+    return;
+  }
+  dd.innerHTML=results.map(r=>{
+    const v=r.vertical?V[r.vertical]:null;
+    const instBadge=r.inst_status?`<span style="font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;background:${r.inst_status==='replied'?'rgba(16,185,129,.15)':'rgba(234,179,8,.1)'};color:${r.inst_status==='replied'?'var(--green)':'var(--yellow)'};margin-left:6px">${r.inst_status}</span>`:'';
+    return`<div onclick="globalSearchSelect('${r.id}')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:10px;transition:background .1s" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">${r.website||r.domain||'no website'}${r.state?' · '+r.state:''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        ${v?`<span style="font-size:11px">${v.emoji}</span>`:''}
+        ${instBadge}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function globalSearchSelect(id){
+  document.getElementById('global-search').value='';
+  hideGlobalSearch();
+  // Switch to companies tab and open drawer
+  switchTab('companies');
+  setTimeout(()=>{
+    if(allBrowse.length){openDrawer(id);}
+    else{loadBrowse().then(()=>openDrawer(id));}
+  },300);
 }
 
 
