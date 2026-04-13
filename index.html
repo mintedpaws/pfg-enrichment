@@ -1201,7 +1201,7 @@ async function instBulkSyncContacts(){
   while(page<500){
     // distinct_contacts:true = one row per unique email (not one per campaign entry)
     // Without this, 8k contacts × 14 campaigns = potentially 112k rows on page 1
-    const body={limit:5,distinct_contacts:true}; // small for debugging — increase after confirmed working
+    const body={limit:100,distinct_contacts:true};
     if(startingAfter)body.starting_after=startingAfter;
     let data=null;
     st.textContent=`Fetching page ${page+1}... (${total.toLocaleString()} leads so far)`;
@@ -1265,12 +1265,12 @@ async function instBulkSyncContacts(){
       // Instantly often keeps campaigns in status=1 even after all emails sent,
       // so add a 21-day recency check (covers a standard 4-step sequence).
       const campStatus=campIdToStatus[lead.campaign];
+      const lastStepTs=lead.status_summary?.lastStep?.timestamp_executed||null;
       const lastContactTs=lastStepTs||lead.timestamp_last_contact||null;
       const daysSinceContact=lastContactTs?Math.floor((Date.now()-new Date(lastContactTs))/86400000):999;
       const isCurrentlyActive=campStatus===1&&daysSinceContact<=21;
       const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':isCurrentlyActive?'active':'contacted';
       // Use lastStep timestamp as most reliable last_contact signal
-      const lastStepTs=lead.status_summary?.lastStep?.timestamp_executed||null;
       const campaign=campIdToName[lead.campaign]||lead.campaign||'';
       const ts=lastStepTs||lead.timestamp_last_contact||lead.timestamp_updated||null;
       const ex=emailMap[email];
