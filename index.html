@@ -482,7 +482,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     </div>
     <div class="fr">
       <input type="text" id="ct-srch" placeholder="Search email, name, company..." oninput="filterContacts()"/>
-      <select id="ct-finst" onchange="filterContacts()"><option value="">All Statuses</option><option value="active">Active</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option><option value="none">Never Contacted</option></select>
+      <select id="ct-finst" onchange="filterContacts()"><option value="">All Statuses</option><option value="active">Active (in sequence)</option><option value="completed">Contacted (done)</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option><option value="none">Never Contacted</option></select>
       <select id="ct-fsrc" onchange="filterContacts()"><option value="">All Sources</option><option value="instantly">Instantly</option><option value="leadscraper">Leadscraper</option><option value="clay">Clay</option></select>
       <select id="ct-fvert" onchange="filterContacts()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option></select>
       <select id="ct-fmatch" onchange="filterContacts()"><option value="">All Match Status</option><option value="matched">Matched to Company</option><option value="unmatched">Unmatched</option></select>
@@ -578,11 +578,11 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       </div>
       <hr class="dv"/>
       <div class="sg">
-        <div class="sc"><div class="l">Active</div><div class="v y" id="ist-active">—</div></div>
+        <div class="sc"><div class="l">In Sequence</div><div class="v b" id="ist-active">—</div></div>
+        <div class="sc"><div class="l">Contacted (Done)</div><div class="v y" id="ist-none">—</div></div>
         <div class="sc"><div class="l">Replied</div><div class="v g" id="ist-replied">—</div></div>
         <div class="sc"><div class="l">Bounced</div><div class="v r" id="ist-bounced">—</div></div>
         <div class="sc"><div class="l">Unsubscribed</div><div class="v r" id="ist-unsub">—</div></div>
-        <div class="sc"><div class="l">Not Enrolled</div><div class="v" id="ist-none">—</div></div>
         <div class="sc"><div class="l">Companies Touched</div><div class="v y" id="ist-co-touched">—</div></div>
       </div>
     </div>
@@ -756,6 +756,11 @@ async function onSignedIn(user){
   if(lastSync){const el=document.getElementById('inst-last-sync');if(el)el.textContent=`Last synced: ${lastSync}`;}
   setupDrop('co-uz','co-file',handleCoFiles);
   setupDrop('ct-uz','ct-file',(t,n)=>{document.getElementById('ct-paste').value=t;document.getElementById('ct-src').value=n;});
+  // One-time contact row click delegation on the static container
+  document.getElementById('ct-tbl').addEventListener('click',function(e){
+    const tr=e.target.closest('tr[data-cid]');
+    if(tr)openContactDrawer(tr.dataset.cid);
+  });
   loadDash();
   loadCampaigns();
 }
@@ -1085,7 +1090,9 @@ async function instBulkSyncContacts(){
       const isBounced=rawSt===-1;
       const isUnsub=rawSt===4;
       const isReplied=lead.email_reply_count>0;
-      const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':'active';
+      const isCompleted=rawSt===3;  // sequence finished, no reply
+      const isActive=rawSt===1||rawSt===2;  // currently in sequence or paused
+      const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':isCompleted?'completed':'active';
       // Use lastStep timestamp as most reliable last_contact signal
       const lastStepTs=lead.status_summary?.lastStep?.timestamp_executed||null;
       const campaign=campIdToName[lead.campaign]||lead.campaign||'';
@@ -1166,9 +1173,10 @@ async function instBulkSyncContacts(){
 async function loadInstantlyStatusStats(){
   if(!sbClient)return;
   const[
-    {count:istActive},{count:istReplied},{count:istBounced},{count:istUnsub},{count:istNone},{count:istCoTouched}
+    {count:istActive},{count:istCompleted},{count:istReplied},{count:istBounced},{count:istUnsub},{count:istNone},{count:istCoTouched}
   ]=await Promise.all([
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','active'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','completed'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','replied'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','bounced'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','unsubscribed'),
@@ -1179,7 +1187,7 @@ async function loadInstantlyStatusStats(){
   document.getElementById('ist-replied').textContent=(istReplied||0).toLocaleString();
   document.getElementById('ist-bounced').textContent=(istBounced||0).toLocaleString();
   document.getElementById('ist-unsub').textContent=(istUnsub||0).toLocaleString();
-  document.getElementById('ist-none').textContent=(istNone||0).toLocaleString();
+  document.getElementById('ist-none').textContent=((istNone||0)+(istCompleted||0)).toLocaleString();
   const elCoTouched=document.getElementById('ist-co-touched');if(elCoTouched)elCoTouched.textContent=(istCoTouched||0).toLocaleString();
 }
 
@@ -1717,7 +1725,18 @@ function filterContacts(){
   const sa=col=>{const active=contactsSort.col===col;const arrow=contactsSort.dir==='asc'?' ↑':' ↓';return active?`<span style="color:var(--purple)">${arrow}</span>`:'<span style="color:var(--muted2)"> ⇅</span>';};
   const th=(col,lbl,w='')=>`<th class="sort${contactsSort.col===col?' active-sort':''}"${w?` style="width:${w}"`:''}  onclick="sortContactsBy('${col}')">${lbl}${sa(col)}</th>`;
 
-  const sbCt=(s,campaign)=>{if(!s)return'<span style="color:var(--muted);font-size:10px">—</span>';const c=s==='replied'?'var(--green)':s==='active'?'var(--yellow)':'var(--red)';const bg=s==='replied'?'rgba(16,185,129,.12)':s==='active'?'rgba(234,179,8,.12)':'rgba(239,68,68,.12)';const label=s==='active'&&campaign?'contacted':s;return'<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:'+bg+';color:'+c+'">'+label+'</span>';};
+  const sbCt=(s)=>{
+    if(!s)return'<span style="color:var(--muted);font-size:10px">—</span>';
+    const map={
+      active:  ['var(--blue)',   'rgba(59,130,246,.12)',  'active'],
+      completed:['var(--yellow)','rgba(234,179,8,.12)',   'contacted'],
+      replied: ['var(--green)',  'rgba(16,185,129,.12)',  'replied'],
+      bounced: ['var(--red)',    'rgba(239,68,68,.12)',   'bounced'],
+      unsubscribed:['var(--red)','rgba(239,68,68,.12)',   'unsub'],
+    };
+    const[c,bg,label]=map[s]||['var(--muted)','var(--s3)',s];
+    return'<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:'+bg+';color:'+c+'">'+label+'</span>';
+  };
   const sbMatch=s=>s==='matched'?'<span style="font-family:var(--mono);font-size:9px;color:var(--green)">✓ matched</span>':'<span style="font-family:var(--mono);font-size:9px;color:var(--red)">✗ unmatched</span>';
 
   let html=`<table style="min-width:1000px"><thead><tr>
@@ -1740,18 +1759,13 @@ function filterContacts(){
       +'<td style="font-size:12px">'+esc(name||'—')+'</td>'
       +'<td style="font-size:12px;font-weight:500">'+esc(r.company_name||co?.name||'—')+'</td>'
       +'<td>'+(co?.vertical?vbadge(co.vertical):'<span style="color:var(--muted);font-size:11px">—</span>')+'</td>'
-      +'<td>'+sbCt(r.instantly_status,r.instantly_campaign)+'</td>'
+      +'<td>'+sbCt(r.instantly_status)+'</td>'
       +'<td style="font-family:var(--mono);font-size:11px;color:var(--muted)">'+lastDate+'</td>'
       +'<td>'+sbMatch(r.match_status)+'</td>'
       +'<td style="font-family:var(--mono);font-size:10px;color:'+srcColor+'">'+esc(r.source_file||'—')+'</td>'
       +'</tr>';
   });
   el.innerHTML=html+'</tbody></table>';
-  // Event delegation — handles any number of rows without inline onclick issues
-  el.querySelector('tbody').addEventListener('click',function(e){
-    const tr=e.target.closest('tr[data-cid]');
-    if(tr)openContactDrawer(tr.dataset.cid);
-  });
 }
 
 /* ══════════════════════════════════════════
@@ -1849,12 +1863,13 @@ async function openContactDrawer(id){
 
   // Status explanation
   const statusDesc={
-    active:'Contacted — completed the full email sequence, no reply yet.',
-    replied:'Replied to at least one email in the sequence.',
-    bounced:'Hard bounce — email address is invalid or unreachable.',
+    active:     'Currently active in a sequence.',
+    completed:  'Sequence finished — all steps sent, no reply yet.',
+    replied:    'Replied to at least one email.',
+    bounced:    'Hard bounce — email address invalid or unreachable.',
     unsubscribed:'Opted out / unsubscribed from emails.',
   };
-  const statusLabel={active:'CONTACTED',replied:'REPLIED',bounced:'BOUNCED',unsubscribed:'UNSUBSCRIBED'};
+  const statusLabel={active:'ACTIVE',completed:'CONTACTED',replied:'REPLIED',bounced:'BOUNCED',unsubscribed:'UNSUBSCRIBED'};
 
   let html='';
 
