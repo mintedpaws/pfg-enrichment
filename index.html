@@ -1778,8 +1778,18 @@ async function importCompanies(){
   const filesToProcess=coParsedFiles.length>0?coParsedFiles:(coParsed?[{parsed:coParsed,filename:'paste'}]:[]);if(!filesToProcess.length){showErr('co-err','No data to import.');return;}
   const excludeNoWeb=document.getElementById('f-nowebsite').checked;const tagEnterprise=document.getElementById('f-enterprise').checked;const tagGovt=document.getElementById('f-govt').checked;const useMinRev=document.getElementById('f-minrev').checked;const minRev=useMinRev?parseRevenue(document.getElementById('f-minrev-val').value):0;
   const st=document.getElementById('co-is');st.textContent='Checking database...';
-  const{data:ex}=await sbClient.from('companies').select('id,domain').not('domain','is',null).limit(10000);
-  const existDomainToId={};(ex||[]).forEach(r=>{if(r.domain)existDomainToId[r.domain]=r.id;});const existSet=new Set(Object.keys(existDomainToId));
+  const existDomainToId={};
+  let exOffset=0;
+  while(true){
+    const{data:exPage}=await sbClient.from('companies').select('id,domain').not('domain','is',null).range(exOffset,exOffset+999);
+    if(!exPage||!exPage.length)break;
+    exPage.forEach(r=>{if(r.domain)existDomainToId[r.domain]=r.id;});
+    if(exPage.length<1000)break;
+    exOffset+=1000;
+    st.textContent=`Checking database... ${Object.keys(existDomainToId).length.toLocaleString()} existing`;
+  }
+  const existSet=new Set(Object.keys(existDomainToId));
+  st.textContent=`Found ${existSet.size.toLocaleString()} existing companies. Processing rows...`;
   const toIns=[],batchDomMap=new Map();const extraContacts=[],locationUpdates={};let dbDupes=0,batchDupes=0,qualitySkipped=0,filterSkipped=0;
   for(const{parsed,filename}of filesToProcess){
     const src=filename;
