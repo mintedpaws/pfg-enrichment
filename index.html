@@ -1148,7 +1148,7 @@ async function testProxy(){
     const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{
       method:'POST',
       headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},
-      body:JSON.stringify({limit:1}),
+      body:JSON.stringify({limit:1,distinct_contacts:true}),
       signal:ctrl.signal
     });
     clearTimeout(timer);
@@ -1199,7 +1199,10 @@ async function instBulkSyncContacts(){
   const activeCampIds=new Set(Object.entries(campIdToStatus).filter(([,s])=>s===1).map(([id])=>id));
   st.textContent=`Campaigns loaded — ${activeCampIds.size} active, ${Object.keys(campIdToName).length} total. Pulling leads...`;
   while(page<500){
-    const body={limit:100};if(startingAfter)body.starting_after=startingAfter;
+    // distinct_contacts:true = one row per unique email (not one per campaign entry)
+    // Without this, 8k contacts × 14 campaigns = potentially 112k rows on page 1
+    const body={limit:50,distinct_contacts:true}; // smaller batch = faster proxy response
+    if(startingAfter)body.starting_after=startingAfter;
     let data=null;
     st.textContent=`Fetching page ${page+1}... (${total.toLocaleString()} leads so far)`;
     const abortCtrl=new AbortController();
