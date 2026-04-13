@@ -486,6 +486,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <select id="ct-fsrc" onchange="filterContacts()"><option value="">All Sources</option><option value="instantly">Instantly</option><option value="leadscraper">Leadscraper</option><option value="clay">Clay</option></select>
       <select id="ct-fvert" onchange="filterContacts()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option></select>
       <select id="ct-fmatch" onchange="filterContacts()"><option value="">All Match Status</option><option value="matched">Matched to Company</option><option value="unmatched">Unmatched</option></select>
+      <select id="ct-freenroll" onchange="filterContacts()"><option value="">All Re-enroll</option><option value="ready">✓ Ready (90+ days)</option><option value="soon">⚡ Soon (60-89 days)</option><option value="recent">Recent (&lt;60 days)</option></select>
     </div>
     <div class="tw" id="ct-tbl" style="overflow-x:auto;margin-bottom:24px"><div class="empty">Loading contacts...</div></div>
 
@@ -1047,7 +1048,7 @@ async function resetSyncData(){
   while(true){
     const{data}=await sbClient.from('contacts').select('id').not('instantly_status','is',null).limit(500);
     if(!data||!data.length)break;
-    await sbClient.from('contacts').update({instantly_status:null,instantly_campaign:null,instantly_last_contacted:null,company_id:null,match_status:'unmatched'}).in('id',data.map(r=>r.id));
+    await sbClient.from('contacts').update({instantly_status:null,instantly_campaign:null,instantly_last_contacted:null,sequence_completed_at:null,company_id:null,match_status:'unmatched'}).in('id',data.map(r=>r.id));
     cleared+=data.length;
     st.textContent=`Cleared ${cleared} contacts...`;
   }
@@ -1149,7 +1150,7 @@ async function instBulkSyncContacts(){
   const allLeads=Object.values(emailMap);let contactsUpserted=0;
   for(let i=0;i<allLeads.length;i+=200){
     const chunk=allLeads.slice(i,i+200);
-    const rows=chunk.map(lead=>{const companyId=domainToCompanyId[lead.domain]||null;return{email:lead.email,first_name:lead.first_name||null,last_name:lead.last_name||null,company_name:lead.company_name||null,domain:lead.domain||null,company_id:companyId,match_status:companyId?'matched':'unmatched',instantly_status:lead.status,instantly_campaign:lead.campaign||null,instantly_last_contacted:lead.last_contacted||null,source_file:'instantly',suppressed:lead.status==='bounced'||lead.status==='unsubscribed'||false,suppressed_reason:lead.status==='bounced'||lead.status==='unsubscribed'?lead.status:null};});
+    const rows=chunk.map(lead=>{const companyId=domainToCompanyId[lead.domain]||null;return{email:lead.email,first_name:lead.first_name||null,last_name:lead.last_name||null,company_name:lead.company_name||null,domain:lead.domain||null,company_id:companyId,match_status:companyId?'matched':'unmatched',instantly_status:lead.status,instantly_campaign:lead.campaign||null,instantly_last_contacted:lead.last_contacted||null,sequence_completed_at:lead.status==='completed'?lead.last_contacted:null,source_file:'instantly',suppressed:lead.status==='bounced'||lead.status==='unsubscribed'||false,suppressed_reason:lead.status==='bounced'||lead.status==='unsubscribed'?lead.status:null};});
     await sbClient.from('contacts').upsert(rows,{onConflict:'email',ignoreDuplicates:false});
     contactsUpserted+=chunk.length;
     const p=Math.round(contactsUpserted/allLeads.length*100);
@@ -1698,6 +1699,7 @@ function filterContacts(){
   const srcF=document.getElementById('ct-fsrc')?.value||'';
   const vertF=document.getElementById('ct-fvert')?.value||'';
   const matchF=document.getElementById('ct-fmatch')?.value||'';
+  const reenrollF=document.getElementById('ct-freenroll')?.value||'';
   let rows=allContacts;
   if(q)rows=rows.filter(r=>(r.email||'').toLowerCase().includes(q)||(r.first_name||'').toLowerCase().includes(q)||(r.last_name||'').toLowerCase().includes(q)||(r.company_name||'').toLowerCase().includes(q)||(r.companies?.name||'').toLowerCase().includes(q));
   if(instF==='none')rows=rows.filter(r=>!r.instantly_status);
@@ -1705,12 +1707,23 @@ function filterContacts(){
   if(srcF)rows=rows.filter(r=>(r.source_file||'').toLowerCase().includes(srcF));
   if(vertF)rows=rows.filter(r=>r.companies?.vertical===vertF);
   if(matchF)rows=rows.filter(r=>r.match_status===matchF);
+  if(reenrollF){
+    rows=rows.filter(r=>{
+      if(r.instantly_status!=='completed')return false;
+      const dt=r.sequence_completed_at||r.instantly_last_contacted;if(!dt)return false;
+      const days=Math.floor((Date.now()-new Date(dt))/86400000);
+      if(reenrollF==='ready')return days>=90;
+      if(reenrollF==='soon')return days>=60&&days<90;
+      if(reenrollF==='recent')return days<60;
+      return true;
+    });
+  }
 
   // Sort
   rows=[...rows].sort((a,b)=>{
     const col=contactsSort.col;
     const dir=contactsSort.dir==='asc'?1:-1;
-    if(col==='instantly_last_contacted'){const av=a[col]||'0000',bv=b[col]||'0000';return av>bv?dir:av<bv?-dir:0;}
+    if(col==='instantly_last_contacted'||col==='sequence_completed_at'){const av=a[col]||'0000',bv=b[col]||'0000';return av>bv?dir:av<bv?-dir:0;}
     if(col==='company'){const av=(a.companies?.name||a.company_name||'').toLowerCase(),bv=(b.companies?.name||b.company_name||'').toLowerCase();return av>bv?dir:av<bv?-dir:0;}
     if(col==='vertical'){const av=(a.companies?.vertical||'').toLowerCase(),bv=(b.companies?.vertical||'').toLowerCase();return av>bv?dir:av<bv?-dir:0;}
     const av=String(a[col]||'').toLowerCase(),bv=String(b[col]||'').toLowerCase();
@@ -1745,15 +1758,31 @@ function filterContacts(){
     ${th('company','Company')}
     ${th('vertical','Vertical','120px')}
     ${th('instantly_status','Status','90px')}
-    ${th('instantly_last_contacted','Last Contacted','130px')}
-    ${th('match_status','Match','100px')}
-    ${th('source_file','Source','110px')}
+    ${th('instantly_last_contacted','Last Contacted','115px')}
+    ${th('sequence_completed_at','Seq. Done','105px')}
+    ${th('match_status','Match','90px')}
+    ${th('source_file','Source','90px')}
   </tr></thead><tbody>`;
 
   rows.forEach(r=>{
     const co=r.companies;const name=[r.first_name,r.last_name].filter(Boolean).join(' ');
     const lastDate=r.instantly_last_contacted?new Date(r.instantly_last_contacted).toLocaleDateString():'—';
     const srcColor=r.source_file==='instantly'?'var(--purple)':r.source_file?.includes('clay')?'var(--blue)':'var(--muted)';
+    // Re-enroll indicator
+    let seqDoneCell='<span style="color:var(--muted);font-size:10px">—</span>';
+    if(r.sequence_completed_at){
+      const doneDate=new Date(r.sequence_completed_at);
+      const daysSince=Math.floor((Date.now()-doneDate)/86400000);
+      const reenrollColor=daysSince>=90?'var(--green)':daysSince>=60?'var(--yellow)':'var(--muted)';
+      seqDoneCell=`<span style="font-family:var(--mono);font-size:10px;color:${reenrollColor}">${doneDate.toLocaleDateString()}</span>`
+        +(daysSince>=60?`<span style="font-family:var(--mono);font-size:9px;display:block;color:${reenrollColor}">${daysSince}d ago${daysSince>=90?' ✓ re-enroll':''}</span>`:'');
+    } else if(r.instantly_status==='completed'&&r.instantly_last_contacted){
+      const doneDate=new Date(r.instantly_last_contacted);
+      const daysSince=Math.floor((Date.now()-doneDate)/86400000);
+      const reenrollColor=daysSince>=90?'var(--green)':daysSince>=60?'var(--yellow)':'var(--muted)';
+      seqDoneCell=`<span style="font-family:var(--mono);font-size:10px;color:${reenrollColor}">${doneDate.toLocaleDateString()}</span>`
+        +(daysSince>=60?`<span style="font-family:var(--mono);font-size:9px;display:block;color:${reenrollColor}">${daysSince}d ago${daysSince>=90?' ✓ re-enroll':''}</span>`:'');
+    }
     html+='<tr style="cursor:pointer" data-cid="'+r.id+'">'
       +'<td style="font-family:var(--mono);font-size:11px;color:var(--purple)">'+esc(r.email||'—')+'</td>'
       +'<td style="font-size:12px">'+esc(name||'—')+'</td>'
@@ -1761,6 +1790,7 @@ function filterContacts(){
       +'<td>'+(co?.vertical?vbadge(co.vertical):'<span style="color:var(--muted);font-size:11px">—</span>')+'</td>'
       +'<td>'+sbCt(r.instantly_status)+'</td>'
       +'<td style="font-family:var(--mono);font-size:11px;color:var(--muted)">'+lastDate+'</td>'
+      +'<td>'+seqDoneCell+'</td>'
       +'<td>'+sbMatch(r.match_status)+'</td>'
       +'<td style="font-family:var(--mono);font-size:10px;color:'+srcColor+'">'+esc(r.source_file||'—')+'</td>'
       +'</tr>';
@@ -1860,6 +1890,10 @@ async function openContactDrawer(id){
   const instStatus=ct.instantly_status;
   const instColor=instStatus==='replied'?'var(--green)':instStatus==='active'?'var(--yellow)':instStatus==='bounced'||instStatus==='unsubscribed'?'var(--red)':'var(--muted)';
   const lastDate=ct.instantly_last_contacted?new Date(ct.instantly_last_contacted).toLocaleDateString():'—';
+  const seqDoneDate=ct.sequence_completed_at||( ct.instantly_status==='completed'?ct.instantly_last_contacted:null);
+  const daysSinceComplete=seqDoneDate?Math.floor((Date.now()-new Date(seqDoneDate))/86400000):null;
+  const reenrollReady=daysSinceComplete!==null&&daysSinceComplete>=90;
+  const reenrollSoon=daysSinceComplete!==null&&daysSinceComplete>=60&&daysSinceComplete<90;
 
   // Status explanation
   const statusDesc={
@@ -1888,8 +1922,11 @@ async function openContactDrawer(id){
         <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:${instColor}">${statusLabel[instStatus]||instStatus.toUpperCase()}</span>
         <span style="font-size:11px;color:var(--muted)">${statusDesc[instStatus]||''}</span>
       </div>
-      ${ct.instantly_campaign?`<div style="font-size:12px;margin-bottom:6px">Campaign: <strong style="color:var(--text)">${esc(ct.instantly_campaign)}</strong></div>`:''}
-      <div style="font-size:12px;color:var(--muted)">Last contacted: <strong style="color:var(--text)">${lastDate}</strong></div>
+      ${ct.instantly_campaign?`<div style="font-size:12px;margin-bottom:4px">Campaign: <strong style="color:var(--text)">${esc(ct.instantly_campaign)}</strong></div>`:''}
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Last contacted: <strong style="color:var(--text)">${lastDate}</strong></div>
+      ${seqDoneDate?`<div style="font-size:12px;margin-bottom:4px">Sequence finished: <strong style="color:var(--text)">${new Date(seqDoneDate).toLocaleDateString()}</strong> <span style="color:var(--muted)">(${daysSinceComplete}d ago)</span></div>`:''}
+      ${reenrollReady?'<div style="margin-top:8px;padding:6px 10px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);border-radius:5px;font-size:11px;color:var(--green);font-weight:600">✓ Ready to re-enroll — 90+ days since last sequence</div>':''}
+      ${reenrollSoon?'<div style="margin-top:8px;padding:6px 10px;background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);border-radius:5px;font-size:11px;color:var(--yellow)">⚡ Re-enroll eligible soon — '+daysSinceComplete+'d since last sequence</div>':''}
     </div>`;
   }
   html+=`<div id="cdr-inst-check" style="margin-top:10px">
