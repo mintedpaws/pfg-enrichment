@@ -1081,6 +1081,17 @@ async function wipeAllData(){
      'nb-co','nb-ct','nb-camp'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='0';});
     localStorage.removeItem('inst_last_sync');
     document.getElementById('inst-last-sync').textContent='';
+    // Clear all cached arrays and re-render tables
+    allBrowse=[];allContacts=[];allCampaigns=[];missingData=[];
+    // Clear table DOMs explicitly
+    const ctTbl=document.getElementById('ct-tbl');
+    if(ctTbl)ctTbl.innerHTML='<div class="empty">No contacts — run Sync to populate.</div>';
+    const brTbl=document.getElementById('br-table');
+    if(brTbl)brTbl.innerHTML='<div class="empty">No companies — import or run Sync to populate.</div>';
+    const campList=document.getElementById('camp-list');
+    if(campList)campList.innerHTML='<div class="empty">No campaigns.</div>';
+    // Reset nav badges
+    ['nb-co','nb-ct','nb-camp'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='0';});
     st.innerHTML='<span style="color:var(--green);font-weight:700">✓ All data wiped — ready for fresh sync</span>';
     toast('Everything wiped','ok');
     loadDash();
