@@ -2569,18 +2569,21 @@ function globalSearchInput(val){
 async function runGlobalSearch(q){
   const dd=document.getElementById('global-search-dropdown');
   if(!sbClient||!q)return;
+  // Normalize: strip protocol/www so URLs match stored domains
+  const qNorm=q.toLowerCase().replace(/^https?:\/\/(www\.)?/,'').replace(/\/+$/,'').trim();
   const qLow=q.toLowerCase();
   // Search in cached allBrowse first
   let results=allBrowse.filter(r=>
     (r.name||'').toLowerCase().includes(qLow)||
-    (r.website||'').toLowerCase().includes(qLow)||
-    (r.domain||'').toLowerCase().includes(qLow)
+    (r.name||'').toLowerCase().includes(qNorm)||
+    (r.website||'').toLowerCase().includes(qNorm)||
+    (r.domain||'').toLowerCase().includes(qNorm)
   ).slice(0,8);
-  // If not loaded yet, query DB
+  // If not loaded yet, query DB using normalized query
   if(!allBrowse.length){
     const{data}=await sbClient.from('companies')
       .select('id,name,website,domain,vertical,state,status,inst_status')
-      .or(`name.ilike.%${q}%,website.ilike.%${q}%,domain.ilike.%${q}%`)
+      .or(`name.ilike.%${qNorm}%,website.ilike.%${qNorm}%,domain.ilike.%${qNorm}%`)
       .limit(8);
     results=data||[];
   }
