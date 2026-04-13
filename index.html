@@ -1717,7 +1717,7 @@ function filterContacts(){
   const sa=col=>{const active=contactsSort.col===col;const arrow=contactsSort.dir==='asc'?' ↑':' ↓';return active?`<span style="color:var(--purple)">${arrow}</span>`:'<span style="color:var(--muted2)"> ⇅</span>';};
   const th=(col,lbl,w='')=>`<th class="sort${contactsSort.col===col?' active-sort':''}"${w?` style="width:${w}"`:''}  onclick="sortContactsBy('${col}')">${lbl}${sa(col)}</th>`;
 
-  const sbCt=s=>{if(!s)return'<span style="color:var(--muted);font-size:10px">—</span>';const c=s==='replied'?'var(--green)':s==='active'?'var(--yellow)':'var(--red)';const bg=s==='replied'?'rgba(16,185,129,.12)':s==='active'?'rgba(234,179,8,.12)':'rgba(239,68,68,.12)';return'<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:'+bg+';color:'+c+'">'+s+'</span>';};
+  const sbCt=(s,campaign)=>{if(!s)return'<span style="color:var(--muted);font-size:10px">—</span>';const c=s==='replied'?'var(--green)':s==='active'?'var(--yellow)':'var(--red)';const bg=s==='replied'?'rgba(16,185,129,.12)':s==='active'?'rgba(234,179,8,.12)':'rgba(239,68,68,.12)';const label=s==='active'&&campaign?'contacted':s;return'<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:'+bg+';color:'+c+'">'+label+'</span>';};
   const sbMatch=s=>s==='matched'?'<span style="font-family:var(--mono);font-size:9px;color:var(--green)">✓ matched</span>':'<span style="font-family:var(--mono);font-size:9px;color:var(--red)">✗ unmatched</span>';
 
   let html=`<table style="min-width:1000px"><thead><tr>
@@ -1735,18 +1735,23 @@ function filterContacts(){
     const co=r.companies;const name=[r.first_name,r.last_name].filter(Boolean).join(' ');
     const lastDate=r.instantly_last_contacted?new Date(r.instantly_last_contacted).toLocaleDateString():'—';
     const srcColor=r.source_file==='instantly'?'var(--purple)':r.source_file?.includes('clay')?'var(--blue)':'var(--muted)';
-    html+='<tr style="cursor:pointer" onclick="openContactDrawer('+JSON.stringify(r.id)+')">'
+    html+='<tr style="cursor:pointer" data-cid="'+r.id+'">'
       +'<td style="font-family:var(--mono);font-size:11px;color:var(--purple)">'+esc(r.email||'—')+'</td>'
       +'<td style="font-size:12px">'+esc(name||'—')+'</td>'
       +'<td style="font-size:12px;font-weight:500">'+esc(r.company_name||co?.name||'—')+'</td>'
       +'<td>'+(co?.vertical?vbadge(co.vertical):'<span style="color:var(--muted);font-size:11px">—</span>')+'</td>'
-      +'<td>'+sbCt(r.instantly_status)+'</td>'
+      +'<td>'+sbCt(r.instantly_status,r.instantly_campaign)+'</td>'
       +'<td style="font-family:var(--mono);font-size:11px;color:var(--muted)">'+lastDate+'</td>'
       +'<td>'+sbMatch(r.match_status)+'</td>'
       +'<td style="font-family:var(--mono);font-size:10px;color:'+srcColor+'">'+esc(r.source_file||'—')+'</td>'
       +'</tr>';
   });
   el.innerHTML=html+'</tbody></table>';
+  // Event delegation — handles any number of rows without inline onclick issues
+  el.querySelector('tbody').addEventListener('click',function(e){
+    const tr=e.target.closest('tr[data-cid]');
+    if(tr)openContactDrawer(tr.dataset.cid);
+  });
 }
 
 /* ══════════════════════════════════════════
@@ -1844,11 +1849,12 @@ async function openContactDrawer(id){
 
   // Status explanation
   const statusDesc={
-    active:'Completed the email sequence — sent all steps, no reply.',
+    active:'Contacted — completed the full email sequence, no reply yet.',
     replied:'Replied to at least one email in the sequence.',
     bounced:'Hard bounce — email address is invalid or unreachable.',
     unsubscribed:'Opted out / unsubscribed from emails.',
   };
+  const statusLabel={active:'CONTACTED',replied:'REPLIED',bounced:'BOUNCED',unsubscribed:'UNSUBSCRIBED'};
 
   let html='';
 
@@ -1860,15 +1866,15 @@ async function openContactDrawer(id){
     html+=`<div style="color:var(--muted);font-size:13px">⬜ Never enrolled in a campaign</div>
       <div style="font-size:11px;color:var(--muted2);margin-top:4px">This contact came from leadscraper or Clay but hasn't been sent any emails yet.</div>`;
   } else {
-    html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:${instColor}">${instStatus.toUpperCase()}</span>
-      <span style="font-size:12px;color:var(--muted)">${statusDesc[instStatus]||''}</span>
-    </div>
-    <div class="dr-grid">
-      <div class="dr-field"><div class="dl">Campaign</div><div class="dv" style="font-size:12px">${esc(ct.instantly_campaign||'—')}</div></div>
-      <div class="dr-field"><div class="dl">Last Contacted</div><div class="dv mono">${lastDate}</div></div>
-      <div class="dr-field"><div class="dl">Opens</div><div class="dv mono">${ct.email_open_count||0}</div></div>
-      <div class="dr-field"><div class="dl">Clicks</div><div class="dv mono">${ct.email_click_count||0}</div></div>
+    const instBg=instStatus==='replied'?'rgba(16,185,129,.08)':instStatus==='active'?'rgba(234,179,8,.06)':'rgba(239,68,68,.08)';
+    const instBorder=instStatus==='replied'?'rgba(16,185,129,.3)':instStatus==='active'?'rgba(234,179,8,.2)':'rgba(239,68,68,.3)';
+    html+=`<div style="background:${instBg};border:1px solid ${instBorder};border-radius:7px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:${instColor}">${statusLabel[instStatus]||instStatus.toUpperCase()}</span>
+        <span style="font-size:11px;color:var(--muted)">${statusDesc[instStatus]||''}</span>
+      </div>
+      ${ct.instantly_campaign?`<div style="font-size:12px;margin-bottom:6px">Campaign: <strong style="color:var(--text)">${esc(ct.instantly_campaign)}</strong></div>`:''}
+      <div style="font-size:12px;color:var(--muted)">Last contacted: <strong style="color:var(--text)">${lastDate}</strong></div>
     </div>`;
   }
   html+=`<div id="cdr-inst-check" style="margin-top:10px">
