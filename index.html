@@ -666,7 +666,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
 </div>
 
 <!-- CONTACT DRAWER -->
-<div class="drawer" id="contact-drawer" style="width:520px;right:-520px;z-index:101">
+<div class="drawer" id="contact-drawer" style="width:520px;z-index:101">
   <div class="dr-hdr">
     <div><div class="dr-name" id="cdr-name">—</div><div class="dr-meta" id="cdr-meta">—</div></div>
     <button class="btn btn-g btn-sm" onclick="closeContactDrawer()">✕</button>
@@ -1849,7 +1849,7 @@ let currentContactId=null;
 async function openContactDrawer(id){
   currentContactId=id;
   const ct=allContacts.find(r=>r.id===id);
-  if(!ct)return;
+  if(!ct){console.warn('openContactDrawer: id not found in allContacts',id,'total:',allContacts.length);toast('Contact not found — try reloading the tab','err');return;}
   const name=[ct.first_name,ct.last_name].filter(Boolean).join(' ')||ct.email;
   document.getElementById('cdr-name').textContent=name;
   document.getElementById('cdr-meta').textContent=[ct.email,ct.title,ct.company_name||ct.companies?.name].filter(Boolean).join(' · ');
