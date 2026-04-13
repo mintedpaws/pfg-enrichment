@@ -576,6 +576,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
         <button class="btn btn-o" onclick="instBulkSyncContacts()">⟳ Sync Contacts + Companies</button>
         <button class="btn btn-g btn-sm" onclick="instSyncSuppression()">⟳ Sync Suppression Only</button>
         <button class="btn btn-g btn-sm" onclick="instDebug()">Debug API</button>
+        <button class="btn btn-g btn-sm" onclick="testProxy()">Test Proxy</button>
         <button class="btn btn-r btn-sm" onclick="resetSyncData()">🗑 Reset Sync Data</button>
         <button class="btn btn-r btn-sm" onclick="wipeAllData()" style="background:#7f1d1d;border-color:#991b1b">💣 Wipe All Data</button>
       </div>
@@ -1136,6 +1137,38 @@ async function resetSyncData(){
   }
 }
 
+async function testProxy(){
+  const st=document.getElementById('inst-sync-st');
+  const key=sessionStorage.getItem('inst_key');
+  if(!key){st.textContent='No Instantly key found';return;}
+  st.textContent='Testing proxy — fetching 1 lead...';
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),15000);
+  try{
+    const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{
+      method:'POST',
+      headers:{'X-Instantly-Key':key,'Content-Type':'application/json'},
+      body:JSON.stringify({limit:1}),
+      signal:ctrl.signal
+    });
+    clearTimeout(timer);
+    const text=await resp.text();
+    if(!resp.ok){
+      st.textContent=`Proxy test FAILED: HTTP ${resp.status} — ${text.slice(0,300)}`;
+      toast('Proxy test failed','err');
+      return;
+    }
+    const data=JSON.parse(text);
+    const lead=data.items?.[0];
+    st.innerHTML=`<span style="color:var(--green);font-weight:700">✓ Proxy working</span> — got ${data.items?.length||0} lead(s). `
+      +(lead?`First email: ${esc(lead.email||'?')} · status: ${lead.status} · campaign: ${esc(lead.campaign||'?')}`:'No leads returned');
+  }catch(e){
+    clearTimeout(timer);
+    st.textContent=e.name==='AbortError'?'Proxy timed out after 15s — is the Cloudflare Worker running?':'Proxy error: '+e.message;
+    toast('Proxy error','err');
+  }
+}
+
 async function instBulkSyncContacts(){
   if(!sbClient||!sessionStorage.getItem('inst_key'))return;
   const st=document.getElementById('inst-sync-st');
@@ -1168,21 +1201,37 @@ async function instBulkSyncContacts(){
   while(page<500){
     const body={limit:100};if(startingAfter)body.starting_after=startingAfter;
     let data=null;
+    st.textContent=`Fetching page ${page+1}... (${total.toLocaleString()} leads so far)`;
+    const abortCtrl=new AbortController();
+    const abortTimer=setTimeout(()=>abortCtrl.abort(),30000); // 30s timeout
     try{
-      const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{method:'POST',headers:{'X-Instantly-Key':sessionStorage.getItem('inst_key'),'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const resp=await fetch(`${INST_PROXY}/api/v2/leads/list`,{
+        method:'POST',
+        headers:{'X-Instantly-Key':sessionStorage.getItem('inst_key'),'Content-Type':'application/json'},
+        body:JSON.stringify(body),
+        signal:abortCtrl.signal
+      });
+      clearTimeout(abortTimer);
       if(!resp.ok){
         const errText=await resp.text().catch(()=>'');
-        st.textContent=`Leads fetch failed: HTTP ${resp.status} — ${errText.slice(0,120)}`;
+        st.textContent=`Leads fetch failed on page ${page+1}: HTTP ${resp.status} — ${errText.slice(0,200)}`;
+        toast(`Leads fetch HTTP ${resp.status}`,'err');
         break;
       }
       data=await resp.json();
     }catch(e){
-      st.textContent=`Leads fetch error: ${e.message}`;
+      clearTimeout(abortTimer);
+      const errMsg=e.name==='AbortError'?`Timed out on page ${page+1} after 30s — proxy may be slow or down`:e.message;
+      st.textContent=`Leads fetch error: ${errMsg}`;
+      toast(errMsg,'err');
       console.error('Leads fetch error',e);
       break;
     }
     if(!data||!data.items?.length){
-      if(page===0)st.textContent='No leads returned from Instantly — check proxy and API key';
+      if(page===0){
+        st.textContent='No leads returned on first page — check Instantly key and proxy';
+        toast('No leads returned','err');
+      }
       break;
     }
     data.items.forEach(lead=>{
