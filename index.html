@@ -375,7 +375,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <select id="br-vert" onchange="filterBrowse()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option><option value="other">Other</option></select>
       <select id="br-status" onchange="filterBrowse()"><option value="">All Status</option><option value="done">Done</option><option value="needs_review">Needs Review</option><option value="pending">Pending</option><option value="error">Error</option></select>
       <select id="br-state" onchange="filterBrowse()"><option value="">All States</option></select>
-      <select id="br-inst" onchange="filterBrowse()"><option value="">All Instantly</option><option value="none">Never Contacted</option><option value="active">Active</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option></select>
+      <select id="br-inst" onchange="filterBrowse()"><option value="">All Instantly</option><option value="none">Not Contacted</option><option value="active">Active</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option></select>
       <select id="br-ct" onchange="filterBrowse()"><option value="">All Contacts</option><option value="none">❌ No Contact</option><option value="generic">⚠ Generic Only</option><option value="direct">👤 Has Direct</option></select>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap"><input type="checkbox" id="br-noweb" onchange="filterBrowse()" style="width:auto"/> No website</label>
     </div>
@@ -489,7 +489,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     </div>
     <div class="fr">
       <input type="text" id="ct-srch" placeholder="Search email, name, company..." oninput="filterContacts()"/>
-      <select id="ct-finst" onchange="filterContacts()"><option value="">All Statuses</option><option value="active">⚡ In Sequence Now</option><option value="contacted">Contacted (done)</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option><option value="none">Never Contacted</option></select>
+      <select id="ct-finst" onchange="filterContacts()"><option value="">All Statuses</option><option value="contacted">Contacted (sending)</option><option value="not_contacted">Not Contacted (enrolled)</option><option value="completed">Completed</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option><option value="none">New (not in Instantly)</option></select>
       <select id="ct-fsrc" onchange="filterContacts()"><option value="">All Sources</option><option value="instantly">Instantly</option><option value="leadscraper">Leadscraper</option><option value="clay">Clay</option></select>
       <select id="ct-fvert" onchange="filterContacts()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option></select>
       <select id="ct-fmatch" onchange="filterContacts()"><option value="">All Match Status</option><option value="matched">Matched to Company</option><option value="unmatched">Unmatched</option></select>
@@ -588,9 +588,10 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       </div>
       <hr class="dv"/>
       <div class="sg">
-        <div class="sc"><div class="l">In Sequence Now</div><div class="v b" id="ist-active-now">—</div></div>
-        <div class="sc"><div class="l">Contacted (done)</div><div class="v y" id="ist-contacted">—</div></div>
-        <div class="sc"><div class="l">Never Contacted</div><div class="v" id="ist-none">—</div></div>
+        <div class="sc"><div class="l">Contacted</div><div class="v b" id="ist-contacted">—</div></div>
+        <div class="sc"><div class="l">Not Contacted</div><div class="v" style="color:var(--cyan)" id="ist-not-contacted">—</div></div>
+        <div class="sc"><div class="l">Completed</div><div class="v y" id="ist-completed">—</div></div>
+        <div class="sc"><div class="l">New (not enrolled)</div><div class="v" id="ist-none">—</div></div>
         <div class="sc"><div class="l">Replied</div><div class="v g" id="ist-replied">—</div></div>
         <div class="sc"><div class="l">Bounced</div><div class="v r" id="ist-bounced">—</div></div>
         <div class="sc"><div class="l">Unsubscribed</div><div class="v r" id="ist-unsub">—</div></div>
@@ -1176,7 +1177,7 @@ async function instBulkSyncContacts(){
   const emailMap={};const domainMap={};const rawStatusDist={};
   let startingAfter=null,page=0,total=0;
   // Priority: replied/bounced/unsub win. active (in live sequence) > contacted (sequence done).
-  const statusPriority={replied:5,bounced:4,unsubscribed:4,active:3,contacted:1};
+  const statusPriority={replied:5,bounced:4,unsubscribed:4,contacted:3,completed:2,not_contacted:1};
   const campIdToName={};const campIdToStatus={};const campIdToCreated={};
   if(instCampData.length){
     instCampData.forEach(c=>{
@@ -1264,10 +1265,14 @@ async function instBulkSyncContacts(){
       // so add a 21-day recency check (covers a standard 4-step sequence).
       const campStatus=campIdToStatus[lead.campaign];
       const lastStepTs=lead.status_summary?.lastStep?.timestamp_executed||null;
-      const lastContactTs=lastStepTs||lead.timestamp_last_contact||null;
-      const daysSinceContact=lastContactTs?Math.floor((Date.now()-new Date(lastContactTs))/86400000):999;
-      const isCurrentlyActive=campStatus===1&&daysSinceContact<=21;
-      const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':isCurrentlyActive?'active':'contacted';
+      // Instantly exact status codes:
+      // 0 = not_contacted (enrolled, sequence not started yet)
+      // 1 = contacted (sequence actively sending)
+      // 2 = paused
+      // 3 = completed (all steps sent)
+      // -1 = bounced, 4 = unsubscribed
+      const isNotContacted=rawSt===0||rawSt===2;
+      const status=isReplied?'replied':isBounced?'bounced':isUnsub?'unsubscribed':rawSt===1?'contacted':isNotContacted?'not_contacted':'completed';
       // Use lastStep timestamp as most reliable last_contact signal
       const campaign=campIdToName[lead.campaign]||lead.campaign||'';
       const ts=lastStepTs||lead.timestamp_last_contact||lead.timestamp_updated||null;
@@ -1364,7 +1369,7 @@ async function instBulkSyncContacts(){
         instantly_campaign_id:lead.campaign_id||null,
         instantly_last_contacted:lead.last_contacted||null,
         instantly_sequence_start:lead.status==='active'?lead.sequence_start:null,
-        sequence_completed_at:lead.status==='contacted'?lead.last_contacted:null,
+        sequence_completed_at:lead.status==='completed'?lead.last_contacted:null,
         source_file:'instantly',
         suppressed:lead.status==='bounced'||lead.status==='unsubscribed'||false,
         suppressed_reason:lead.status==='bounced'||lead.status==='unsubscribed'?lead.status:null
@@ -1404,20 +1409,23 @@ async function instBulkSyncContacts(){
 async function loadInstantlyStatusStats(){
   if(!sbClient)return;
   const[
-    {count:istActiveNow},{count:istContacted},{count:istReplied},{count:istBounced},{count:istUnsub},{count:istNone},{count:istCoTouched}
+    {count:istContacted},{count:istNotContacted},{count:istCompleted},{count:istReplied},{count:istBounced},{count:istUnsub},{count:istNone},{count:istCoTouched}
   ]=await Promise.all([
-    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','active'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','contacted'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','not_contacted'),
+    sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','completed'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','replied'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','bounced'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).eq('instantly_status','unsubscribed'),
     sbClient.from('contacts').select('*',{count:'exact',head:true}).is('instantly_status',null),
     sbClient.from('companies').select('*',{count:'exact',head:true}).not('inst_status','is',null),
   ]);
-  const istActiveNowEl=document.getElementById('ist-active-now');
-  if(istActiveNowEl)istActiveNowEl.textContent=(istActiveNow||0).toLocaleString();
   const istContactedEl=document.getElementById('ist-contacted');
   if(istContactedEl)istContactedEl.textContent=(istContacted||0).toLocaleString();
+  const istNotContactedEl=document.getElementById('ist-not-contacted');
+  if(istNotContactedEl)istNotContactedEl.textContent=(istNotContacted||0).toLocaleString();
+  const istCompletedEl=document.getElementById('ist-completed');
+  if(istCompletedEl)istCompletedEl.textContent=(istCompleted||0).toLocaleString();
   document.getElementById('ist-replied').textContent=(istReplied||0).toLocaleString();
   document.getElementById('ist-bounced').textContent=(istBounced||0).toLocaleString();
   document.getElementById('ist-unsub').textContent=(istUnsub||0).toLocaleString();
@@ -1948,14 +1956,14 @@ function filterContacts(){
   const reenrollF=document.getElementById('ct-freenroll')?.value||'';
   let rows=allContacts;
   if(q)rows=rows.filter(r=>(r.email||'').toLowerCase().includes(q)||(r.first_name||'').toLowerCase().includes(q)||(r.last_name||'').toLowerCase().includes(q)||(r.company_name||'').toLowerCase().includes(q)||(r.companies?.name||'').toLowerCase().includes(q));
-  if(instF==='none')rows=rows.filter(r=>!r.instantly_status);
+  if(instF==='none')rows=rows.filter(r=>!r.instantly_status||r.instantly_status==='none'||r.instantly_status==='new');
   else if(instF)rows=rows.filter(r=>r.instantly_status===instF);
   if(srcF)rows=rows.filter(r=>(r.source_file||'').toLowerCase().includes(srcF));
   if(vertF)rows=rows.filter(r=>r.companies?.vertical===vertF);
   if(matchF)rows=rows.filter(r=>r.match_status===matchF);
   if(reenrollF){
     rows=rows.filter(r=>{
-      if(r.instantly_status!=='contacted')return false;
+      if(r.instantly_status!=='completed')return false;
       const dt=r.sequence_completed_at||r.instantly_last_contacted;if(!dt)return false;
       const days=Math.floor((Date.now()-new Date(dt))/86400000);
       if(reenrollF==='ready')return days>=90;
@@ -1987,12 +1995,14 @@ function filterContacts(){
   const sbCt=(s)=>{
     if(!s)return'<span style="color:var(--muted);font-size:10px">—</span>';
     const map={
-      active:   ['var(--blue)',  'rgba(59,130,246,.15)', '⚡ active'],
-      contacted:['var(--yellow)','rgba(234,179,8,.12)',  'contacted'],
-      replied:  ['var(--green)', 'rgba(16,185,129,.12)', 'replied'],
-      bounced:  ['var(--red)',   'rgba(239,68,68,.12)',  'bounced'],
-      unsubscribed:['var(--red)','rgba(239,68,68,.12)',  'unsub'],
+      contacted:     ['var(--blue)',   'rgba(59,130,246,.15)',  'contacted'],
+      completed:     ['var(--yellow)', 'rgba(234,179,8,.12)',   'completed'],
+      not_contacted: ['var(--cyan)',   'rgba(6,182,212,.12)',   'not contacted'],
+      replied:       ['var(--green)',  'rgba(16,185,129,.12)',  'replied'],
+      bounced:       ['var(--red)',    'rgba(239,68,68,.12)',   'bounced'],
+      unsubscribed:  ['var(--red)',    'rgba(239,68,68,.12)',   'unsub'],
     };
+    if(!s||s==='none'||s==='new')return'<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:var(--s2);color:var(--muted);border:1px solid var(--bd)">new — not in instantly</span>';
     const[c,bg,label]=map[s]||['var(--muted)','var(--s3)',s];
     return'<span style="font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:3px;background:'+bg+';color:'+c+'">'+label+'</span>';
   };
@@ -2022,7 +2032,7 @@ function filterContacts(){
       const reenrollColor=daysSince>=90?'var(--green)':daysSince>=60?'var(--yellow)':'var(--muted)';
       seqDoneCell=`<span style="font-family:var(--mono);font-size:10px;color:${reenrollColor}">${doneDate.toLocaleDateString()}</span>`
         +(daysSince>=60?`<span style="font-family:var(--mono);font-size:9px;display:block;color:${reenrollColor}">${daysSince}d ago${daysSince>=90?' ✓ re-enroll':''}</span>`:'');
-    } else if(r.instantly_status==='contacted'&&r.instantly_last_contacted){
+    } else if(r.instantly_status==='completed'&&r.instantly_last_contacted){
       const doneDate=new Date(r.instantly_last_contacted);
       const daysSince=Math.floor((Date.now()-doneDate)/86400000);
       const reenrollColor=daysSince>=90?'var(--green)':daysSince>=60?'var(--yellow)':'var(--muted)';
@@ -2134,7 +2144,7 @@ async function openContactDrawer(id){
 
   const co=ct.companies;
   const instStatus=ct.instantly_status;
-  const instColor=instStatus==='replied'?'var(--green)':instStatus==='active'?'var(--blue)':instStatus==='contacted'?'var(--yellow)':instStatus==='bounced'||instStatus==='unsubscribed'?'var(--red)':'var(--muted)';
+  const instColor=instStatus==='replied'?'var(--green)':instStatus==='contacted'?'var(--blue)':instStatus==='completed'?'var(--yellow)':instStatus==='bounced'||instStatus==='unsubscribed'?'var(--red)':'var(--muted)';
   const lastDate=ct.instantly_last_contacted?new Date(ct.instantly_last_contacted).toLocaleDateString():'—';
   const seqDoneDate=ct.sequence_completed_at||( ct.instantly_status==='completed'?ct.instantly_last_contacted:null);
   const daysSinceComplete=seqDoneDate?Math.floor((Date.now()-new Date(seqDoneDate))/86400000):null;
@@ -2143,13 +2153,15 @@ async function openContactDrawer(id){
 
   // Status explanation
   const statusDesc={
-    active:      'Currently in an active sending sequence.',
-    contacted:   'Sequence finished — eligible to re-enroll after 90 days.',
+    contacted:     'Currently in sequence — steps are being sent now.',
+    not_contacted: 'Enrolled in a sequence but sending has not started yet.',
+    completed:     'Sequence finished — eligible to re-enroll after 90 days.',
+    none:          'Not in Instantly — never added to any campaign.',
     replied:     'Replied to at least one email.',
     bounced:     'Hard bounce — email address invalid or unreachable.',
     unsubscribed:'Opted out / unsubscribed.',
   };
-  const statusLabel={active:'IN SEQUENCE',contacted:'CONTACTED',replied:'REPLIED',bounced:'BOUNCED',unsubscribed:'UNSUBSCRIBED'};
+  const statusLabel={contacted:'CONTACTED',not_contacted:'NOT CONTACTED',completed:'COMPLETED',replied:'REPLIED',bounced:'BOUNCED',unsubscribed:'UNSUBSCRIBED',none:'NEW — NOT IN INSTANTLY'};
 
   let html='';
 
@@ -2158,8 +2170,10 @@ async function openContactDrawer(id){
     <h4>Instantly Status</h4>
     <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px">`;
   if(!instStatus){
-    html+=`<div style="color:var(--muted);font-size:13px">⬜ Never enrolled in a campaign</div>
-      <div style="font-size:11px;color:var(--muted2);margin-top:4px">This contact came from leadscraper or Clay but hasn't been sent any emails yet.</div>`;
+    html+=`<div style="padding:10px 14px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;margin-bottom:8px">
+      <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px">NEW — NOT IN INSTANTLY</div>
+      <div style="font-size:12px;color:var(--muted)">Never added to any campaign. Import to Instantly to enroll in a sequence.</div>
+    </div>`;
   } else {
     const instBg=instStatus==='replied'?'rgba(16,185,129,.08)':instStatus==='active'?'rgba(234,179,8,.06)':'rgba(239,68,68,.08)';
     const instBorder=instStatus==='replied'?'rgba(16,185,129,.3)':instStatus==='active'?'rgba(234,179,8,.2)':'rgba(239,68,68,.3)';
