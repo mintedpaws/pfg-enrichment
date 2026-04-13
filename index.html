@@ -1053,25 +1053,23 @@ async function wipeAllData(){
   const st=document.getElementById('inst-sync-st');
   try{
     st.textContent='Wiping contacts...';
-    // Must delete contacts first due to foreign key on company_id
-    let offset=0;
-    while(true){
-      const{data}=await sbClient.from('contacts').select('id').range(offset,offset+999);
+    // Always fetch from top (offset 0) after each delete — deleted rows shift down
+    let wipedCt=0;
+    for(let safety=0;safety<50;safety++){
+      const{data}=await sbClient.from('contacts').select('id').limit(500);
       if(!data||!data.length)break;
       await sbClient.from('contacts').delete().in('id',data.map(r=>r.id));
-      offset+=data.length;
-      st.textContent=`Deleting contacts... ${offset.toLocaleString()}`;
-      if(data.length<1000)break;
+      wipedCt+=data.length;
+      st.textContent=`Deleting contacts... ${wipedCt.toLocaleString()} so far`;
     }
     st.textContent='Wiping companies...';
-    offset=0;
-    while(true){
-      const{data}=await sbClient.from('companies').select('id').range(offset,offset+999);
+    let wipedCo=0;
+    for(let safety=0;safety<50;safety++){
+      const{data}=await sbClient.from('companies').select('id').limit(500);
       if(!data||!data.length)break;
       await sbClient.from('companies').delete().in('id',data.map(r=>r.id));
-      offset+=data.length;
-      st.textContent=`Deleting companies... ${offset.toLocaleString()}`;
-      if(data.length<1000)break;
+      wipedCo+=data.length;
+      st.textContent=`Deleting companies... ${wipedCo.toLocaleString()} so far`;
     }
     st.textContent='Wiping suppression list...';
     await sbClient.from('suppression').delete().not('id','is',null);
