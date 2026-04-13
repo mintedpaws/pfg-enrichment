@@ -787,7 +787,7 @@ let coParsedFiles=[];
 let sbClient=null,currentUser=null;
 let isRunning=false,shouldPause=false;
 let coParsed=null,ctParsed=null;
-let allBrowse=[],browseSort={col:'name',dir:'asc'};
+let allBrowse=[],browseSort={col:'created_at',dir:'desc'};
 let allContacts=[],contactsSort={col:'instantly_last_contacted',dir:'desc'};
 let allCampaigns=[];
 let logEntries=[];
@@ -1917,7 +1917,7 @@ async function loadBrowse(){
   // Paginate companies to bypass project row limit
   let allCoData=[];let coOffset=0;
   while(true){
-    const{data:page}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count').order('name').range(coOffset,coOffset+999);
+    const{data:page}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count,created_at').order('created_at',{ascending:false}).range(coOffset,coOffset+999);
     if(!page||!page.length)break;
     allCoData.push(...page);
     if(page.length<1000)break;
@@ -1965,7 +1965,7 @@ function filterBrowse(){
     <th style="width:28px"><input type="checkbox" id="sel-all" onclick="toggleSelectAll(this)" style="width:auto"/></th>
     ${th('name','Company')}${th('website','Website','160px')}${th('state','ST','38px')}
     ${th('vertical','Vertical','130px')}${th('_score','Score','80px')}
-    <th style="width:90px">Instantly</th><th style="width:90px">Contact</th>
+    ${th('vertical','Vertical','130px')}${th('_score','Score','80px')}${th('created_at','Added','80px')}
     ${th('status','Status','80px')}<th style="width:36px"></th>
   </tr></thead><tbody>`;
   rows.forEach(r=>{
@@ -1991,7 +1991,11 @@ function filterBrowse(){
   });
   el.innerHTML=html+'</tbody></table>';
 }
-function sortBrowse(col){if(browseSort.col===col)browseSort.dir=browseSort.dir==='asc'?'desc':'asc';else{browseSort.col=col;browseSort.dir='asc';}filterBrowse();}
+function sortBrowse(col){
+  if(browseSort.col===col)browseSort.dir=browseSort.dir==='asc'?'desc':'asc';
+  else{browseSort.col=col;browseSort.dir=col==='created_at'?'desc':'asc';}  // newest first by default
+  filterBrowse();
+}
 function statusBadge(s){const m={done:['var(--green)','rgba(34,197,94,.1)'],needs_review:['var(--yellow)','rgba(234,179,8,.1)'],pending:['var(--muted)','var(--s3)'],error:['var(--red)','rgba(239,68,68,.1)'],processing:['var(--blue)','rgba(59,130,246,.1)']};const[col,bg]=m[s]||m.pending;return`<span class="sb" style="color:${col};background:${bg}">${s}</span>`;}
 async function deleteBrowse(id,btn){if(!confirm('Delete this company?'))return;await sbClient.from('companies').delete().eq('id',id);btn.closest('tr').remove();allBrowse=allBrowse.filter(r=>r.id!==id);document.getElementById('br-count').textContent=`Showing ${allBrowse.length.toLocaleString()} of ${allBrowse.length.toLocaleString()}`;toast('Deleted','ok');}
 async function deleteNoWebsite(){if(!sbClient)return;const{data}=await sbClient.from('companies').select('id').is('website',null).is('domain',null).limit(10000);if(!data||!data.length){toast('No companies without website','info');return;}if(!confirm(`Delete ${data.length} companies with no website?`))return;const ids=data.map(r=>r.id);for(let i=0;i<ids.length;i+=200)await sbClient.from('companies').delete().in('id',ids.slice(i,i+200));toast(`Deleted ${ids.length}`,'ok');loadBrowse();loadDash();}
