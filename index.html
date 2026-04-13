@@ -883,13 +883,25 @@ async function instLoadCampaigns(){
   st.textContent=`${instCampData.length} campaigns`;
   const el=document.getElementById('inst-camp-list');
   if(!instCampData.length){el.innerHTML='<div class="empty">No campaigns found.</div>';return;}
-  const analyticsData=await instFetch('/api/v2/campaigns/analytics',{exclude_total_leads_count:true});
+  const analyticsData=await instFetch('/api/v2/campaigns/analytics',{});
   instAnalyticsMap={};
   if(analyticsData){const items=Array.isArray(analyticsData)?analyticsData:(analyticsData.items||[]);items.forEach(a=>{if(a.campaign_id)instAnalyticsMap[a.campaign_id]=a;});}
   renderCampList();
 }
 
 function sortCampaigns(){renderCampList();}
+
+function getNotContactedTotal(){
+  // Derive not_contacted from analytics (API doesn't expose queued leads)
+  let total=0;
+  instCampData.forEach(c=>{
+    const s=instAnalyticsMap[c.id]||{};
+    const totalLeads=s.total_leads_count||s.leads_count||0;
+    const contacted=s.contacted_count||0;
+    total+=Math.max(0,totalLeads-contacted);
+  });
+  return total;
+}
 
 function renderCampList(){
   const sort=document.getElementById('camp-sort')?.value||'name';
@@ -903,6 +915,8 @@ function renderCampList(){
   el.innerHTML=camps.map(c=>{
     const s=instAnalyticsMap[c.id]||{};
     const sent=s.emails_sent_count||0,opens=s.open_count||0,replies=s.reply_count||0,bounces=s.bounced_count||0,contacted=s.contacted_count||0;
+    const totalLeads=s.total_leads_count||s.leads_count||0;
+    const notContacted=totalLeads>0?Math.max(0,totalLeads-contacted):0;
     const openPct=contacted>0?Math.round(opens/contacted*100):0;
     const replyPct=contacted>0?Math.round(replies/contacted*100):0;
     const statusMap={1:'active',2:'paused',3:'completed',0:'draft'};
@@ -913,9 +927,9 @@ function renderCampList(){
         <div><div style="font-weight:600;font-size:14px;margin-bottom:3px">${esc(c.name||'Unnamed')}</div><div style="font-family:var(--mono);font-size:10px;color:${statusColor}">⬤ ${statusLabel}</div></div>
         <div style="display:flex;align-items:center;gap:20px">
           <div style="display:grid;grid-template-columns:repeat(5,62px);gap:8px;text-align:center">
-            <div><div style="font-family:var(--mono);font-size:15px;font-weight:700">${sent.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">SENT</div></div>
+            ${totalLeads>0?`<div><div style="font-family:var(--mono);font-size:15px;font-weight:700">${totalLeads.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">TOTAL</div></div>`:''}
+            <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--cyan)">${notContacted>0?notContacted.toLocaleString():'—'}</div><div style="font-family:var(--mono);font-size:9px;color:var(--cyan)">NOT CONTACTED</div></div>
             <div><div style="font-family:var(--mono);font-size:15px;font-weight:700">${contacted.toLocaleString()}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">CONTACTED</div></div>
-            <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--blue)">${openPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">OPENS</div></div>
             <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--green)">${replyPct}%</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">REPLIES</div></div>
             <div><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--red)">${bounces}</div><div style="font-family:var(--mono);font-size:9px;color:var(--muted)">BOUNCES</div></div>
           </div>
@@ -1432,7 +1446,9 @@ async function loadInstantlyStatusStats(){
   const istContactedEl=document.getElementById('ist-contacted');
   if(istContactedEl)istContactedEl.textContent=(istContacted||0).toLocaleString();
   const istNotContactedEl=document.getElementById('ist-not-contacted');
-  if(istNotContactedEl)istNotContactedEl.textContent=(istNotContacted||0).toLocaleString();
+  // Not Contacted = derived from campaign analytics (total - contacted), not from DB
+  const derivedNotContacted=getNotContactedTotal();
+  if(istNotContactedEl)istNotContactedEl.textContent=derivedNotContacted>0?derivedNotContacted.toLocaleString():(istNotContacted||0).toLocaleString();
   const istPausedEl=document.getElementById('ist-paused');
   if(istPausedEl)istPausedEl.textContent=(istPaused||0).toLocaleString();
   const istCompletedEl=document.getElementById('ist-completed');
