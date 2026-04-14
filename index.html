@@ -391,6 +391,11 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     <div class="sh"><h2>// Vertical Breakdown</h2></div>
     <div class="sg" id="vert-sg"></div>
 
+    <div class="sh" style="margin-top:8px"><h2>// Import Log — By Source File</h2><button class="btn btn-g btn-sm" onclick="loadImportLog()">Load</button></div>
+    <div id="import-log-wrap">
+      <div style="color:var(--muted);font-size:12px;padding:8px">Click Load to see per-file import stats.</div>
+    </div>
+
     <!-- KEEP old stat IDs for compatibility -->
     <div style="display:none">
       <span id="st-co"></span><span id="st-done"></span><span id="st-rv"></span><span id="st-pend"></span>
@@ -438,6 +443,7 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
       <select id="br-state" onchange="filterBrowse()"><option value="">All States</option></select>
       <select id="br-inst" onchange="filterBrowse()"><option value="">All Instantly</option><option value="none">Not Contacted</option><option value="active">Active</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option></select>
       <select id="br-ct" onchange="filterBrowse()"><option value="">All Contacts</option><option value="none">❌ No Contact</option><option value="generic">⚠ Generic Only</option><option value="direct">👤 Has Direct</option></select>
+      <select id="br-src" onchange="filterBrowse()"><option value="">All Sources</option></select>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap"><input type="checkbox" id="br-noweb" onchange="filterBrowse()" style="width:auto"/> No website</label>
     </div>
     <div id="br-count" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px"></div>
@@ -787,7 +793,7 @@ let coParsedFiles=[];
 let sbClient=null,currentUser=null;
 let isRunning=false,shouldPause=false;
 let coParsed=null,ctParsed=null;
-let allBrowse=[],browseSort={col:'created_at',dir:'desc'};
+let allBrowse=[],browseSort={col:'name',dir:'asc'};
 let allContacts=[],contactsSort={col:'instantly_last_contacted',dir:'desc'};
 let allCampaigns=[];
 let logEntries=[];
@@ -1614,6 +1620,68 @@ async function instDebug(){
 /* ══════════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════════ */
+async function loadImportLog(){
+  if(!sbClient)return;
+  const el=document.getElementById('import-log-wrap');
+  el.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">Loading...</div>';
+  // Get per source_file stats
+  const[{data:coByFile},{data:ctByFile}]=await Promise.all([
+    sbClient.from('companies').select('source_file,status,vertical,contact_email').limit(10000),
+    sbClient.from('contacts').select('source_file,instantly_status').limit(10000),
+  ]);
+  if(!coByFile||!coByFile.length){el.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">No companies imported yet.</div>';return;}
+  // Group by source_file
+  const fileMap={};
+  coByFile.forEach(r=>{
+    const f=r.source_file||'unknown';
+    if(!fileMap[f])fileMap[f]={total:0,classified:0,hasEmail:0,pending:0};
+    fileMap[f].total++;
+    if(r.status==='done'||r.status==='needs_review')fileMap[f].classified++;
+    if(r.contact_email)fileMap[f].hasEmail++;
+    if(r.status==='pending')fileMap[f].pending++;
+  });
+  const ctFileMap={};
+  (ctByFile||[]).forEach(r=>{
+    const f=r.source_file||'unknown';
+    if(!ctFileMap[f])ctFileMap[f]={total:0,contacted:0,completed:0,replied:0};
+    ctFileMap[f].total++;
+    if(r.instantly_status==='contacted')ctFileMap[f].contacted++;
+    if(r.instantly_status==='completed')ctFileMap[f].completed++;
+    if(r.instantly_status==='replied')ctFileMap[f].replied++;
+  });
+  const files=Object.keys(fileMap).sort();
+  const pct=(a,b)=>b>0?Math.round(a/b*100)+'%':'0%';
+  el.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--s2);border-bottom:1px solid var(--bd)">
+      <th style="padding:8px 12px;text-align:left;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.07em;text-transform:uppercase">Source File</th>
+      <th style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.07em;text-transform:uppercase">Companies</th>
+      <th style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.07em;text-transform:uppercase">Classified</th>
+      <th style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.07em;text-transform:uppercase">Has Email</th>
+      <th style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.07em;text-transform:uppercase">Contacts</th>
+      <th style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--yellow);font-weight:700;letter-spacing:.07em;text-transform:uppercase">Contacted</th>
+      <th style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--green);font-weight:700;letter-spacing:.07em;text-transform:uppercase">Replied</th>
+      <th style="padding:8px 12px;text-align:center;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.07em;text-transform:uppercase"></th>
+    </tr></thead><tbody>
+    ${files.map(f=>{
+      const co=fileMap[f];
+      const ct=ctFileMap[f]||{total:0,contacted:0,completed:0,replied:0};
+      const inInstantly=ct.contacted+ct.completed+ct.replied;
+      const readyCo=co.hasEmail-inInstantly;
+      const bar=co.classified>0?`<div style="height:3px;background:var(--s4);border-radius:2px;width:80px;display:inline-block;vertical-align:middle;margin-left:6px"><div style="height:100%;width:${pct(co.classified,co.total)};background:var(--green);border-radius:2px"></div></div>`:'';
+      return`<tr style="border-bottom:1px solid var(--bd)" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''">
+        <td style="padding:8px 12px;font-family:var(--mono);font-size:10px;color:var(--text);cursor:pointer" onclick="document.getElementById('br-src').value='${esc(f)}';filterBrowse();switchTab('companies')">${esc(f)}</td>
+        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:11px">${co.total.toLocaleString()}</td>
+        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:11px;color:${co.classified===co.total?'var(--green)':co.pending>0?'var(--yellow)':'var(--text)'}">${co.classified.toLocaleString()} ${bar}</td>
+        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--text)">${co.hasEmail.toLocaleString()}</td>
+        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--blue)">${ct.total.toLocaleString()}</td>
+        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--yellow)">${inInstantly.toLocaleString()}</td>
+        <td style="padding:8px 12px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--green)">${ct.replied.toLocaleString()}</td>
+        <td style="padding:8px 12px;text-align:center"><button class="btn btn-g btn-sm" style="font-size:10px;padding:3px 8px" onclick="document.getElementById('br-src').value='${esc(f)}';filterBrowse();switchTab('companies')">View →</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+
 async function loadDash(){
   if(!sbClient)return;
   // Use count queries to bypass Supabase project row limit
@@ -1821,7 +1889,18 @@ async function importCompanies(){
   const parts=[`✓ ${ins.toLocaleString()} companies imported`];if(dbDupes)parts.push(`${dbDupes} location dupes tracked`);if(batchDupes)parts.push(`${batchDupes} in-file dupes merged`);if(filterSkipped)parts.push(`${filterSkipped} filtered`);if(qualitySkipped)parts.push(`${qualitySkipped} quality-excluded`);if(extraContacts.length)parts.push(`${extraContacts.length} extra contacts saved`);
   st.textContent=parts.join(' · ');toast(parts[0],'ok');
   document.getElementById('co-paste').value='';document.getElementById('co-file-list').style.display='none';document.getElementById('co-mwrap').style.display='none';
-  coParsed=null;coParsedFiles=[];loadDash();loadBrowse();
+  coParsed=null;
+  const justImported=filesToProcess.length===1?filesToProcess[0].filename:'';
+  coParsedFiles=[];loadDash();
+  switchTab('companies');
+  setTimeout(()=>{
+    loadBrowse().then(()=>{
+      if(justImported&&document.getElementById('br-src')){
+        document.getElementById('br-src').value=justImported;
+        filterBrowse();
+      }
+    });
+  },300);
 }
 
 /* ══════════════════════════════════════════
@@ -1935,6 +2014,14 @@ async function loadBrowse(){
   const data=allCoData;const ctCounts=allCtData;
   const ctMap={};(ctCounts||[]).forEach(ct=>{if(!ctMap[ct.company_id])ctMap[ct.company_id]={total:0,direct:0,generic:0};ctMap[ct.company_id].total++;if(isGenericEmail(ct.email||''))ctMap[ct.company_id].generic++;else ctMap[ct.company_id].direct++;});
   allBrowse=(data||[]).map(r=>({...r,_ctStats:ctMap[r.id]||null}));
+  // Populate source file filter
+  const srcSel=document.getElementById('br-src');
+  if(srcSel){
+    const sources=[...new Set(allBrowse.map(r=>r.source_file).filter(Boolean))].sort();
+    const curVal=srcSel.value;
+    srcSel.innerHTML='<option value="">All Sources</option>'+sources.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
+    if(curVal)srcSel.value=curVal;
+  }
   selectedRows.clear();updateBulkBar();filterBrowse();
 }
 
@@ -1946,11 +2033,13 @@ function filterBrowse(){
   const nw=document.getElementById('br-noweb')?.checked;
   const instF=document.getElementById('br-inst')?.value||'';
   const ctF=document.getElementById('br-ct')?.value||'';
+  const srcF=document.getElementById('br-src')?.value||'';
   let rows=allBrowse;
   if(q)rows=rows.filter(r=>(r.name||'').toLowerCase().includes(q)||(r.website||'').toLowerCase().includes(q)||(r.state||'').toLowerCase().includes(q));
   if(v)rows=rows.filter(r=>r.vertical===v);
   if(s)rows=rows.filter(r=>r.status===s);
   if(st)rows=rows.filter(r=>(r.state||'').toUpperCase()===st);
+  if(srcF)rows=rows.filter(r=>r.source_file===srcF);
   if(nw)rows=rows.filter(r=>!r.website);
   if(instF==='none')rows=rows.filter(r=>!r.inst_status);
   else if(instF)rows=rows.filter(r=>r.inst_status===instF);
@@ -1965,7 +2054,7 @@ function filterBrowse(){
     <th style="width:28px"><input type="checkbox" id="sel-all" onclick="toggleSelectAll(this)" style="width:auto"/></th>
     ${th('name','Company')}${th('website','Website','160px')}${th('state','ST','38px')}
     ${th('vertical','Vertical','130px')}${th('_score','Score','80px')}
-    ${th('vertical','Vertical','130px')}${th('_score','Score','80px')}${th('created_at','Added','80px')}
+    ${th('vertical','Vertical','130px')}${th('_score','Score','80px')}
     ${th('status','Status','80px')}<th style="width:36px"></th>
   </tr></thead><tbody>`;
   rows.forEach(r=>{
