@@ -2023,7 +2023,30 @@ function parseCSVText(raw){const lines=raw.trim().split('\n').filter(l=>l.trim()
 ══════════════════════════════════════════ */
 const CO_FIELDS=[{key:'name',label:'Company Name *',required:true},{key:'website',label:'Website'},{key:'state',label:'State'},{key:'city',label:'City'},{key:'categories',label:'Google Categories'},{key:'description',label:'Description'},{key:'sic',label:'SIC Code'},{key:'naics',label:'NAICS Code'},{key:'revenue',label:'Revenue'},{key:'employees',label:'Employees'},{key:'founded',label:'Founded'},{key:'linkedin',label:'LinkedIn URL'},{key:'email',label:'Email (company/role)'},{key:'contact_first_name',label:'Contact First Name'},{key:'contact_last_name',label:'Contact Last Name'},{key:'contact_role',label:'Contact Role'},{key:'contact_email',label:'Contact Email (direct/named)'}];
 const CT_FIELDS=[{key:'email',label:'Email *',required:true},{key:'first_name',label:'First Name'},{key:'last_name',label:'Last Name'},{key:'title',label:'Job Title'},{key:'company_name',label:'Company Name'},{key:'website',label:'Company Website'}];
-const DP={name:['business','company name','company','name','business name','organization','org','dba'],website:['website','url','domain','web','site','company website','company url','company_website','web site'],categories:['categories','category','type','business type','place type','google category','google_categories','place categories'],description:['description','desc','about','summary','snippet','bio','overview','business description'],sic:['sic','sic code','sic_code'],naics:['naics','naics code','naics_code'],revenue:['revenue','rev','annual revenue','estimated revenue','annual_revenue','est revenue'],employees:['employees','employee','staff','headcount','employee count','num employees','employee_count','number of employees'],founded:['founded','founded year','established','year founded','year established'],state:['state','province','region'],city:['city','town','municipality','location'],linkedin:['linkedin','linkedin url','linkedin_url','linkedin profile','li url'],contact_first_name:['contact first name','contact first','first name','first','firstname'],contact_last_name:['contact last name','contact last','last name','last','lastname'],contact_role:['contact role','role','contact title','contact position'],contact_email:['contact email','contact e-mail'],email:['email','email address','e-mail','work email','work_email'],first_name:['first name','first','firstname','fname','given name','first_name'],last_name:['last name','last','lastname','lname','surname','family name','last_name'],title:['title','job title','position','role','job','designation','job_title'],company_name:['company','company name','organization','org','employer','current company']};
+const DP={
+  name:['business','company name','company','name','business name','organization','org','dba','place name','title'],
+  website:['website','url','domain','web','site','company website','company url','company_website','web site','website url','site url','homepage'],
+  // Google Maps leadscraper uses "type","types","place_type","place_types","category_name"
+  categories:['categories','category','type','types','place type','place types','place_type','place_types','business type','google category','google_categories','google categories','category name','place category','main category','primary category'],
+  description:['description','desc','about','summary','snippet','bio','overview','business description','place description','editorial summary'],
+  sic:['sic','sic code','sic_code','sic#','sic number'],
+  naics:['naics','naics code','naics_code','naics#','naics number'],
+  revenue:['revenue','rev','annual revenue','estimated revenue','annual_revenue','est revenue','yearly revenue','sales','annual sales'],
+  employees:['employees','employee','staff','headcount','employee count','num employees','employee_count','number of employees','team size','workforce'],
+  founded:['founded','founded year','established','year founded','year established','opening date','opened'],
+  state:['state','province','region','us state','state code','state_code'],
+  city:['city','town','municipality','locality','city name'],
+  linkedin:['linkedin','linkedin url','linkedin_url','linkedin profile','li url','linkedin link'],
+  contact_first_name:['contact first name','contact first','first name','first','firstname','owner first','contact_first_name'],
+  contact_last_name:['contact last name','contact last','last name','last','lastname','owner last','contact_last_name'],
+  contact_role:['contact role','role','contact title','contact position','owner title','owner role'],
+  contact_email:['contact email','contact e-mail','direct email','named email','owner email','contact_email'],
+  email:['email','email address','e-mail','work email','work_email','business email','company email'],
+  first_name:['first name','first','firstname','fname','given name','first_name'],
+  last_name:['last name','last','lastname','lname','surname','family name','last_name'],
+  title:['title','job title','position','role','job','designation','job_title'],
+  company_name:['company','company name','organization','org','employer','current company'],
+};
 
 function autoDetect(headers,fields){const m={};const hL=headers.map(h=>h.toLowerCase().trim());const used=new Set();fields.forEach(f=>{const pats=DP[f.key]||[f.key];for(let i=0;i<hL.length;i++){if(used.has(i))continue;const h=hL[i];const hit=pats.some(p=>{const pn=p.toLowerCase();if(h===pn)return true;if(h.replace(/[_\s]/g,' ')===pn)return true;if(pn.includes(' ')&&pn.split(' ').every(w=>w.length>2&&h.includes(w)))return true;return false;});if(hit){m[i]=f.key;used.add(i);break;}}});return m;}
 function buildMapper(cId,headers,rows,fields,autoM){const opts='<option value="">— skip —</option>'+fields.map(f=>`<option value="${f.key}">${f.label}</option>`).join('');document.getElementById(cId).innerHTML='<div class="mapper-hdr"><span>Your Column</span><span>Sample Values</span><span>Maps To</span></div>'+headers.map((h,i)=>{const sample=rows.slice(0,3).map(r=>(r[i]||'').slice(0,50)).filter(Boolean).join(' · ');return`<div class="mapper-row"><div class="mr-name">${esc(h)}</div><div class="mr-sample">${esc(sample)}</div><div class="mr-sel"><select data-col="${i}">${opts}</select></div></div>`;}).join('');document.querySelectorAll(`#${cId} select[data-col]`).forEach(sel=>{const v=autoM[parseInt(sel.dataset.col)];if(v)sel.value=v;});}
@@ -2045,7 +2068,25 @@ function includeAllBad(){excludedRowIndices.clear();badRowIndices.forEach(i=>{co
    COMPANY IMPORT
 ══════════════════════════════════════════ */
 function parseCompanyCSV(){
-  if(coParsedFiles.length>0){const first=coParsedFiles[0];coParsed=first.parsed;hideErr('co-err');const autoM=autoDetect(first.parsed.headers,CO_FIELDS);buildMapper('co-mapper',first.parsed.headers,first.parsed.rows,CO_FIELDS,autoM);document.getElementById('co-mwrap').style.display='block';runQualityCheck(first.parsed.rows,autoM.name,autoM.website,autoM.state);return;}
+  if(coParsedFiles.length>0){
+    const first=coParsedFiles[0];coParsed=first.parsed;hideErr('co-err');
+    const autoM=autoDetect(first.parsed.headers,CO_FIELDS);
+    buildMapper('co-mapper',first.parsed.headers,first.parsed.rows,CO_FIELDS,autoM);
+    document.getElementById('co-mwrap').style.display='block';
+    runQualityCheck(first.parsed.rows,autoM.name,autoM.website,autoM.state);
+    // Show detection summary — tells user which key columns were found vs missing
+    const invM=Object.fromEntries(Object.entries(autoM).map(([i,k])=>[k,parseInt(i)]));
+    const keyFields=['categories','sic','naics','description','state','revenue','employees'];
+    const found=keyFields.filter(k=>invM[k]!==undefined);
+    const missing=keyFields.filter(k=>invM[k]===undefined);
+    const summEl=document.getElementById('co-detect-summary');
+    if(summEl){
+      summEl.style.display='block';
+      summEl.innerHTML=(found.length?`<span style="color:var(--green)">✓ Found: ${found.join(', ')}</span>`:'')
+        +(missing.length?` &nbsp;<span style="color:var(--yellow)">⚠ Not detected: ${missing.join(', ')} — map these manually below or data won't enrich</span>`:'');
+    }
+    return;
+  }
   const raw=document.getElementById('co-paste').value.trim();if(!raw){showErr('co-err','Paste rows or upload a file.');return;}hideErr('co-err');
   coParsed=parseCSVText(raw);if(!coParsed){showErr('co-err','Could not parse CSV.');return;}
   coParsedFiles=[{parsed:coParsed,filename:'paste'}];
