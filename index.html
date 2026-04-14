@@ -438,10 +438,12 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     <!-- FILTERS -->
     <div class="fr">
       <input type="text" id="br-search" placeholder="Search name, website, state..." oninput="filterBrowse()"/>
-      <select id="br-vert" onchange="filterBrowse()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option><option value="other">Other</option></select>
+      <select id="br-vert" onchange="filterBrowse();updateSubVertFilter()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option><option value="other">Other</option></select>
+      <select id="br-subvert" onchange="filterBrowse()" style="display:none"><option value="">All Sub-Verticals</option></select>
       <select id="br-status" onchange="filterBrowse()"><option value="">All Status</option><option value="done">Done</option><option value="needs_review">Needs Review</option><option value="pending">Pending</option><option value="error">Error</option></select>
       <select id="br-state" onchange="filterBrowse()"><option value="">All States</option></select>
       <select id="br-inst" onchange="filterBrowse()"><option value="">All Instantly</option><option value="none">Not Contacted</option><option value="active">Active</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option></select>
+      <select id="br-excl" onchange="filterBrowse()"><option value="">All Tags</option><option value="excluded">⊘ All Excluded</option><option value="excluded:porta_potty">⊘ Excl: Porta Potty</option><option value="excluded:equipment">⊘ Excl: Equipment</option><option value="excluded:dumpster">⊘ Excl: Dumpster</option><option value="excluded:propane">⊘ Excl: Propane</option><option value="excluded:junk_removal">⊘ Excl: Junk Removal</option><option value="enterprise">🏢 Enterprise</option><option value="government">🏛 Government</option></select>
       <select id="br-ct" onchange="filterBrowse()"><option value="">All Contacts</option><option value="none">❌ No Contact</option><option value="generic">⚠ Generic Only</option><option value="direct">👤 Has Direct</option></select>
       <select id="br-src" onchange="filterBrowse()"><option value="">All Sources</option></select>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap"><input type="checkbox" id="br-noweb" onchange="filterBrowse()" style="width:auto"/> No website</label>
@@ -499,6 +501,12 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     <div class="collapsible-body" id="cb-classify">
       <div id="proc-err" class="eb"></div>
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;flex-wrap:wrap">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap">Tier 1-3: Free rules first, then API for ambiguous only:</span>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="radio" name="classify-api" value="claude" checked style="width:auto"/> <span>Claude Sonnet <span style="color:var(--muted);font-size:10px">~$3/1M tokens</span></span></label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="radio" name="classify-api" value="gpt4mini" style="width:auto"/> <span>GPT-4o-mini <span style="color:var(--green);font-size:10px">~$0.15/1M · 20x cheaper</span></span></label>
+        <div id="openai-key-wrap" style="display:none"><input type="password" id="cfg-openai" placeholder="OpenAI key: sk-..." oninput="saveOpenAIKey()" style="background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;width:200px"/></div>
+      </div>
         <div class="f" style="max-width:180px"><label>Per API call</label><select id="batch-sz"><option value="50">50</option><option value="100">100</option><option value="150" selected>150</option><option value="200">200</option></select></div>
         <div class="f" style="max-width:180px"><label>Parallel calls</label><select id="concurrency"><option value="1">1 (Tier 1)</option><option value="2">2</option><option value="4" selected>4 (recommended)</option><option value="6">6 (Tier 2+)</option></select></div>
         <div class="f" style="max-width:150px"><label>Stop after (0=all)</label><input type="number" id="run-limit" value="0" min="0"/></div>
@@ -761,16 +769,178 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
 /* ══════════════════════════════════════════
    VERTICALS + CONSTANTS
 ══════════════════════════════════════════ */
-const V={
-  dumpster:    {label:'Dumpster/Roll-Off',  color:'#f97316',bg:'rgba(249,115,22,.12)', emoji:'🗑️'},
-  junk_removal:{label:'Junk Removal',       color:'#fb7185',bg:'rgba(251,113,133,.12)',emoji:'🚛'},
-  equipment:   {label:'Equipment Rental',   color:'#3b82f6',bg:'rgba(59,130,246,.12)', emoji:'🏗️'},
-  propane:     {label:'Propane/Oil',        color:'#a855f7',bg:'rgba(168,85,247,.12)', emoji:'🔥'},
-  porta_potty: {label:'Porta Potty',        color:'#22c55e',bg:'rgba(34,197,94,.12)',  emoji:'🚽'},
-  septic:      {label:'Septic',             color:'#eab308',bg:'rgba(234,179,8,.12)',  emoji:'💧'},
-  waste:       {label:'Waste Management',   color:'#06b6d4',bg:'rgba(6,182,212,.12)',  emoji:'♻️'},
-  other:       {label:'Other/Unknown',      color:'#64748b',bg:'rgba(100,116,139,.12)',emoji:'❓'},
+/* ══════════════════════════════════════════
+   MASTER VERTICAL CONFIG
+   Add a new vertical here — everything else
+   (dropdowns, rules, Claude prompt) auto-updates
+══════════════════════════════════════════ */
+const VERTICALS_CONFIG = {
+  dumpster: {
+    label:'Dumpster/Roll-Off', color:'#f97316', bg:'rgba(249,115,22,.12)', emoji:'🗑️',
+    description:'Roll-off container rental. Customer rents empty container and fills it themselves.',
+    sic:['4953','4959'],
+    naics:['562111','5621'],
+    catRules:[
+      {pat:/roll.?off|dumpster.?rental|container.?rental|rolloff/i, conf:'high'},
+      {pat:/dumpster/i, conf:'medium'},
+    ],
+    nameRules:[
+      {pat:/roll.?off|dumpster/i, conf:'medium'},
+    ],
+    excludeRules:[
+      /disposal.?service.*food|recycl.*center|scrap.?metal|auto.?salvage|junkyard/i,
+    ],
+  },
+  junk_removal: {
+    label:'Junk Removal', color:'#fb7185', bg:'rgba(251,113,133,.12)', emoji:'🚛',
+    description:'Full-service removal — crew physically removes items. Key: junk removal, hauling, estate cleanout.',
+    sic:['4212','4213'],
+    naics:['484210','4842'],
+    catRules:[
+      {pat:/junk.?remov|junk.?haul|estate.?clean|debris.?remov/i, conf:'high'},
+      {pat:/junk removal/i, conf:'high'},
+    ],
+    nameRules:[
+      {pat:/junk.?king|junk.?removal|got.?junk|junk.?pro|college.?hunk/i, conf:'high'},
+    ],
+    excludeRules:[
+      /junk.?mail|junk.?food|junkyard.?auto|salvage.?yard|scrap.?dealer/i,
+      /antique|thrift.?store|secondhand|consignment/i,
+    ],
+  },
+  equipment: {
+    label:'Equipment Rental', color:'#3b82f6', bg:'rgba(59,130,246,.12)', emoji:'🏗️',
+    description:'Heavy construction/industrial equipment rental — excavators, forklifts, boom lifts, generators.',
+    sic:['7359','7353','5082','5084','7369'],
+    naics:['532412','532310','532420','532490','5324','53241'],
+    catRules:[
+      {pat:/equipment.?rent|heavy.?equipment|crane.?rent|forklift.?rent|aerial.?lift|boom.?lift|excavat.*rent|skid.?steer/i, conf:'high'},
+      {pat:/equipment.?rental|tool.?rental/i, conf:'medium'},
+    ],
+    nameRules:[
+      {pat:/equipment.?rental|tool.?rental|sunbelt|united.?rental|herc.?rent/i, conf:'high'},
+    ],
+    excludeRules:[
+      // Sales only, repair shops, vending, medical/office equipment
+      /equipment.?repair|equipment.?sale|medical.?equipment|dental.?equipment/i,
+      /vending.?machine|office.?equipment|audio.?visual|party.?supply(?!.*rental)/i,
+      /fitness.?equipment|exercise.?equipment|gym.?equipment/i,
+    ],
+  },
+  propane: {
+    label:'Propane/Oil', color:'#a855f7', bg:'rgba(168,85,247,.12)', emoji:'🔥',
+    description:'Propane/LP gas delivery, heating oil, diesel fuel delivery.',
+    sic:['5984','5171','5172','5983'],
+    naics:['454310','42471','424710','447190'],
+    catRules:[
+      {pat:/propane|lp.?gas|fuel.?oil|heating.?oil|diesel.?fuel.?deliver/i, conf:'high'},
+      {pat:/propane|fuel.?deliver/i, conf:'medium'},
+    ],
+    nameRules:[
+      {pat:/propane|lp.?gas/i, conf:'medium'},
+    ],
+    excludeRules:[
+      /propane.?grill|barbecue.?supply|camping.?supply|fireplace(?!.*fuel)/i,
+      /gas.?station(?!.*propane)|convenience.?store/i,
+    ],
+  },
+  porta_potty: {
+    label:'Porta Potty', color:'#22c55e', bg:'rgba(34,197,94,.12)', emoji:'🚽',
+    description:'Portable restroom rental, portable sanitation, event/construction toilets.',
+    sic:['7699','7389'],
+    naics:['562991','56299'],
+    catRules:[
+      {pat:/porta.?pott|portable.?toilet|portable.?restroom|portable.?sanitation|toilet.?rental/i, conf:'high'},
+      {pat:/sanitation/i, conf:'medium'},
+    ],
+    nameRules:[
+      {pat:/porta.?pott|port.?a.?john|port.?a.?pot|sanipot/i, conf:'medium'},
+    ],
+    excludeRules:[
+      // Plumbers, remodelers, public facilities, cleaners
+      /plumb(ing|er)|bathroom.?remodel|toilet.?repair|toilet.?install/i,
+      /janitorial|restroom.?clean|public.?restroom|public.?bathroom|park.?facilit/i,
+      /hotel|motel|restaurant|cafe|food.?service/i,
+    ],
+  },
+  septic: {
+    label:'Septic', color:'#eab308', bg:'rgba(234,179,8,.12)', emoji:'💧',
+    description:'Septic tank pumping/installation/repair, drain cleaning, grease trap pumping.',
+    sic:['1711','7692','1731'],
+    naics:['562991','238910','2389'],
+    catRules:[
+      {pat:/septic.?tank|drain.?clean|grease.?trap|cesspool|septic.?pump/i, conf:'high'},
+      {pat:/septic/i, conf:'medium'},
+    ],
+    nameRules:[
+      {pat:/septic|drain.?king|roto.?root|drainpro/i, conf:'low'},
+    ],
+  },
+  waste: {
+    label:'Waste Management', color:'#06b6d4', bg:'rgba(6,182,212,.12)', emoji:'♻️',
+    description:'Large-scale commercial or municipal solid waste — scheduled collection routes, recycling, transfer stations.',
+    sic:['4953','4212','4213','4214','4215'],
+    naics:['562112','562119','5621','562920'],
+    catRules:[
+      {pat:/waste.?manag|garbage.?collect|trash.?collect|recycl.*facilit|transfer.?station|landfill/i, conf:'high'},
+      {pat:/waste.?collect|refuse.?collect/i, conf:'medium'},
+    ],
+    nameRules:[
+      {pat:/waste.?connect|waste.?manag|republic.?service|casella|rumpke/i, conf:'high'},
+    ],
+  },
+  c_stores: {
+    label:'C-Stores / Gas Stations', color:'#f59e0b', bg:'rgba(245,158,11,.12)', emoji:'⛽',
+    description:'Convenience stores, gas stations, fuel retailers, truck stops.',
+    sic:['5541','5411','5171','5172'],
+    naics:['447110','447190','445120','44512'],
+    catRules:[
+      {pat:/convenience.?store|gas.?station|fuel.?station|c.?store|petrol|truck.?stop|travel.?plaza/i, conf:'high'},
+      {pat:/convenience|fuel.?retail/i, conf:'medium'},
+    ],
+    nameRules:[
+      {pat:/casey'?s|circle.?k|wawa|sheetz|pilot|flying.?j|loves.?travel|kwik.?trip|7.?eleven|cefco|cnrg/i, conf:'high'},
+    ],
+  },
+  other: {
+    label:'Other/Unknown', color:'#64748b', bg:'rgba(100,116,139,.12)', emoji:'❓',
+    description:'Does not clearly fit any vertical above.',
+    sic:[], naics:[], catRules:[], nameRules:[],
+  },
 };
+
+// Derive V from config for backward compatibility
+const V=Object.fromEntries(Object.entries(VERTICALS_CONFIG).map(([k,v])=>[k,{label:v.label,color:v.color,bg:v.bg,emoji:v.emoji}]));
+
+// Build tiered classification maps from config
+function buildClassificationMaps(){
+  const sicMap={}, naicsMap={}, catRules=[], nameRules=[];
+  Object.entries(VERTICALS_CONFIG).forEach(([vKey,vConf])=>{
+    if(vKey==='other')return;
+    (vConf.sic||[]).forEach(s=>{ sicMap[s]=vKey; sicMap[s.slice(0,4)]=sicMap[s.slice(0,4)]||vKey; sicMap[s.slice(0,3)]=sicMap[s.slice(0,3)]||vKey; });
+    (vConf.naics||[]).forEach(n=>{ naicsMap[n]=vKey; naicsMap[n.slice(0,5)]=naicsMap[n.slice(0,5)]||vKey; naicsMap[n.slice(0,4)]=naicsMap[n.slice(0,4)]||vKey; });
+    (vConf.catRules||[]).forEach(r=>catRules.push({...r,v:vKey}));
+    (vConf.nameRules||[]).forEach(r=>nameRules.push({...r,v:vKey}));
+  });
+  return{sicMap,naicsMap,catRules,nameRules};
+}
+const {sicMap:SIC_MAP_DYN,naicsMap:NAICS_MAP_DYN,catRules:CAT_RULES_DYN,nameRules:NAME_RULES_DYN}=buildClassificationMaps();
+
+// Build Claude system prompt from config
+function buildSystemPrompt(){
+  const vertList=Object.entries(VERTICALS_CONFIG).filter(([k])=>k!=='other').map(([k,v])=>`- ${k}: ${v.description}`).join('\n');
+  return `You classify companies into B2B sales verticals for a decal and print company. Precision matters.
+
+VERTICALS:
+${vertList}
+- other: Does not clearly fit any vertical above.
+
+CRITICAL: Use category tags > Description > SIC/NAICS > Company name as signal priority.
+Confidence: high=2+ clear signals | medium=1 clear signal | low=ambiguous
+
+Return ONLY a valid JSON array — no markdown, no text before or after.`;
+}
+
 const STATES=['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 const NATIONAL_CHAINS=['united rentals','sunbelt rentals','herc rentals','ahern rentals','blueline rental','waste management','republic services','clean harbors','stericycle','casella waste','covanta','us ecology','advanced disposal','safety kleen','heritage crystal clean','harsco','maxim crane','bigge crane','neff','brambles','h&e equipment','rumpke','waste connections','enviri','clean earth','us waste industries','lhoist','recology','gfl environmental','gfl','granite waste','meridian waste','home depot','lowes','fastenal','uhaul','penske truck','ryder'];
 const GOVT_PATTERN=/\b(township|county\s+of|city\s+of|town\s+of|village\s+of|borough\s+of|dept\.?\s+of|department\s+of|authority|municipal|municipality|district|public\s+works|sanitation\s+dept|public\s+utility|utility\s+district|state\s+of)\b/i;
@@ -809,6 +979,33 @@ let missingData=[];
    INIT
 ══════════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded',async()=>{
+  // Show/hide OpenAI key based on model selection
+  document.querySelectorAll('input[name="classify-api"]').forEach(r=>{
+    r.addEventListener('change',()=>{
+      const wrap=document.getElementById('openai-key-wrap');
+      if(wrap)wrap.style.display=r.value==='gpt4mini'&&r.checked?'block':'none';
+      if(r.value==='gpt4mini'&&r.checked){
+        const saved=sessionStorage.getItem('openai_key');
+        const el=document.getElementById('cfg-openai');
+        if(el&&saved)el.value=saved;
+      }
+    });
+  });
+  // Populate all vertical dropdowns from VERTICALS_CONFIG
+  const vertSelectors=['br-vert','ct-fvert','nc-vert','bulk-vert-sel'];
+  vertSelectors.forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    const isFilter=id.startsWith('br-')||id.startsWith('ct-');
+    const isAssign=id==='bulk-vert-sel';
+    const blank=isFilter?'<option value="">All Verticals</option>':isAssign?'<option value="">Assign vertical...</option>':'<option value="">— select —</option>';
+    const includeOther=!isAssign; // don't include "other" in assign dropdown
+    el.innerHTML=blank+Object.entries(VERTICALS_CONFIG)
+      .filter(([k])=>isAssign?k!=='other':true)
+      .map(([k,v])=>`<option value="${k}">${v.emoji} ${v.label}</option>`)
+      .join('');
+  });
+
   const url=localStorage.getItem('sb_url'),key=localStorage.getItem('sb_key'),ant=sessionStorage.getItem('ant_key'),inst=sessionStorage.getItem('inst_key');
   if(ant)document.getElementById('cfg-ant').value=ant;
   if(inst){document.getElementById('cfg-inst').value=inst;saveInstKey();}
@@ -1858,7 +2055,7 @@ async function importCompanies(){
   }
   const existSet=new Set(Object.keys(existDomainToId));
   st.textContent=`Found ${existSet.size.toLocaleString()} existing companies. Processing rows...`;
-  const toIns=[],batchDomMap=new Map();const extraContacts=[],locationUpdates={};let dbDupes=0,batchDupes=0,qualitySkipped=0,filterSkipped=0;
+  const toIns=[],batchDomMap=new Map();const extraContacts=[],locationUpdates={},enrichUpdates={};let dbDupes=0,batchDupes=0,qualitySkipped=0,filterSkipped=0,enriched=0;
   for(const{parsed,filename}of filesToProcess){
     const src=filename;
     for(let rowIdx=0;rowIdx<parsed.rows.length;rowIdx++){
@@ -1872,7 +2069,36 @@ async function importCompanies(){
       const cFirst=m.contact_first_name!==undefined?(row[m.contact_first_name]||null):null;const cLast=m.contact_last_name!==undefined?(row[m.contact_last_name]||null):null;const cRole=m.contact_role!==undefined?(row[m.contact_role]||null):null;
       let cEmail=null,secondaryEmail=null;
       if(rawContactEmail&&rawEmail&&rawContactEmail!==rawEmail){const contactGeneric=isGenericEmail(rawContactEmail);const rawGeneric=isGenericEmail(rawEmail);if(!contactGeneric){cEmail=rawContactEmail;secondaryEmail=rawEmail;}else if(!rawGeneric){cEmail=rawEmail;secondaryEmail=rawContactEmail;}else{cEmail=rawContactEmail;secondaryEmail=rawEmail;}}else cEmail=rawContactEmail||rawEmail||null;
-      if(domain&&existSet.has(domain)){locationUpdates[domain]=(locationUpdates[domain]||0)+1;if(cEmail)extraContacts.push({email:cEmail,first_name:cFirst,last_name:cLast,title:cRole,domain,match_status:'pending',source_file:src});if(secondaryEmail)extraContacts.push({email:secondaryEmail,domain,match_status:'pending',source_file:src});dbDupes++;continue;}
+      if(domain&&existSet.has(domain)){
+        // Enrich existing company with leadscraper data
+        const existId=existDomainToId[domain];
+        const enrichFields={};
+        if(m.categories!==undefined&&row[m.categories])enrichFields.categories=(row[m.categories]||'').slice(0,500);
+        if(m.description!==undefined&&row[m.description])enrichFields.description=(row[m.description]||'').slice(0,1000);
+        if(m.sic!==undefined&&row[m.sic])enrichFields.sic=row[m.sic];
+        if(m.naics!==undefined&&row[m.naics])enrichFields.naics=row[m.naics];
+        if(m.revenue!==undefined&&row[m.revenue])enrichFields.revenue=row[m.revenue];
+        if(m.employees!==undefined&&row[m.employees])enrichFields.employees=row[m.employees];
+        if(m.founded!==undefined&&row[m.founded])enrichFields.founded=row[m.founded];
+        if(m.state!==undefined&&row[m.state]&&!enrichFields.state)enrichFields.state=row[m.state];
+        if(m.city!==undefined&&row[m.city])enrichFields.city=row[m.city];
+        if(m.linkedin!==undefined&&row[m.linkedin])enrichFields.linkedin=row[m.linkedin];
+        if(cEmail)enrichFields.contact_email=cEmail;
+        if(cFirst)enrichFields.contact_first_name=cFirst;
+        if(cLast)enrichFields.contact_last_name=cLast;
+        if(cRole)enrichFields.contact_role=cRole;
+        // Only reset to pending for re-classification if we now have categories/SIC that were missing
+        if((enrichFields.categories||enrichFields.sic||enrichFields.naics)&&Object.keys(enrichFields).length>0){
+          enrichFields.status='pending'; // re-classify with new data
+        }
+        if(Object.keys(enrichFields).length>0){
+          enrichUpdates[existId]=enrichFields;
+        }
+        locationUpdates[domain]=(locationUpdates[domain]||0)+1;
+        if(cEmail)extraContacts.push({email:cEmail,first_name:cFirst,last_name:cLast,title:cRole,domain,match_status:'pending',source_file:src});
+        if(secondaryEmail)extraContacts.push({email:secondaryEmail,domain,match_status:'pending',source_file:src});
+        dbDupes++;continue;
+      }
       if(domain&&batchDomMap.has(domain)){batchDupes++;const idx=batchDomMap.get(domain);toIns[idx]._lc=(toIns[idx]._lc||1)+1;if(!toIns[idx].contact_email&&cEmail){toIns[idx].contact_email=cEmail;toIns[idx].contact_first_name=cFirst;toIns[idx].contact_last_name=cLast;toIns[idx].contact_role=cRole;}else if(cEmail&&cEmail!==toIns[idx].contact_email)extraContacts.push({email:cEmail,first_name:cFirst,last_name:cLast,title:cRole,domain,match_status:'pending',source_file:src});if(secondaryEmail&&secondaryEmail!==toIns[idx].contact_email)extraContacts.push({email:secondaryEmail,domain,match_status:'pending',source_file:src});continue;}
       const tags=[];if(tagEnterprise||tagGovt){const t=detectTags(name,revenue,employees);if(t){if(tagEnterprise&&t.includes('enterprise'))tags.push('enterprise');if(tagGovt&&t.includes('government'))tags.push('government');}}
       const entry={name,website:website||null,domain:domain||null,categories:m.categories!==undefined?((row[m.categories]||'').slice(0,500)||null):null,description:m.description!==undefined?((row[m.description]||'').slice(0,1000)||null):null,sic:m.sic!==undefined?(row[m.sic]||null):null,naics:m.naics!==undefined?(row[m.naics]||null):null,revenue:revenue||null,employees:employees||null,founded:m.founded!==undefined?(row[m.founded]||null):null,state:m.state!==undefined?(row[m.state]||null):null,city:m.city!==undefined?(row[m.city]||null):null,contact_first_name:cFirst,contact_last_name:cLast,contact_role:cRole,contact_email:cEmail,linkedin:m.linkedin!==undefined?(row[m.linkedin]||null):null,tags:tags.length?tags.join(','):null,location_count:1,status:'pending',source_file:src,_lc:1};
@@ -1885,8 +2111,17 @@ async function importCompanies(){
   let ins=0;
   for(let i=0;i<cleanIns.length;i+=1000){const{error}=await sbClient.from('companies').insert(cleanIns.slice(i,i+1000));if(error){showErr('co-err','Insert error: '+error.message);return;}ins+=Math.min(1000,cleanIns.length-i);st.textContent=`Inserting... ${ins.toLocaleString()} / ${cleanIns.length.toLocaleString()}`;}
   for(const[domain,extra]of Object.entries(locationUpdates)){const id=existDomainToId[domain];if(!id)continue;const{data:cd}=await sbClient.from('companies').select('location_count').eq('id',id).single();if(cd)await sbClient.from('companies').update({location_count:(cd.location_count||1)+extra}).eq('id',id);}
+  // Apply enrichment updates to existing companies (batch)
+  const enrichEntries=Object.entries(enrichUpdates);
+  enriched=enrichEntries.length;
+  if(enrichEntries.length){
+    st.textContent=`Enriching ${enrichEntries.length.toLocaleString()} existing companies with leadscraper data...`;
+    for(let i=0;i<enrichEntries.length;i+=200){
+      await Promise.all(enrichEntries.slice(i,i+200).map(([id,fields])=>sbClient.from('companies').update(fields).eq('id',id)));
+    }
+  }
   if(extraContacts.length){const{data:ect}=await sbClient.from('contacts').select('email');const eset=new Set((ect||[]).map(r=>(r.email||'').toLowerCase()));const newEx=extraContacts.filter(c=>c.email&&!eset.has(c.email));for(let i=0;i<newEx.length;i+=500)await sbClient.from('contacts').insert(newEx.slice(i,i+500));}
-  const parts=[`✓ ${ins.toLocaleString()} companies imported`];if(dbDupes)parts.push(`${dbDupes} location dupes tracked`);if(batchDupes)parts.push(`${batchDupes} in-file dupes merged`);if(filterSkipped)parts.push(`${filterSkipped} filtered`);if(qualitySkipped)parts.push(`${qualitySkipped} quality-excluded`);if(extraContacts.length)parts.push(`${extraContacts.length} extra contacts saved`);
+  const parts=[`✓ ${ins.toLocaleString()} new companies imported`];if(enriched)parts.push(`${enriched.toLocaleString()} existing enriched + set to re-classify`);if(dbDupes)parts.push(`${dbDupes} domain matches`);if(batchDupes)parts.push(`${batchDupes} in-file dupes merged`);if(filterSkipped)parts.push(`${filterSkipped} filtered`);if(qualitySkipped)parts.push(`${qualitySkipped} quality-excluded`);if(extraContacts.length)parts.push(`${extraContacts.length} contacts saved`);
   st.textContent=parts.join(' · ');toast(parts[0],'ok');
   document.getElementById('co-paste').value='';document.getElementById('co-file-list').style.display='none';document.getElementById('co-mwrap').style.display='none';
   coParsed=null;
@@ -1904,8 +2139,258 @@ async function importCompanies(){
 }
 
 /* ══════════════════════════════════════════
+   SUB-VERTICAL CLASSIFICATION
+   More granular buckets within each vertical
+   for precise campaign targeting
+══════════════════════════════════════════ */
+
+const SUB_VERTICALS = {
+  equipment: {
+    'crane_rigging':    {label:'Crane & Rigging',     color:'#f97316'},
+    'aerial_lift':      {label:'Aerial / Boom Lift',  color:'#fb923c'},
+    'excavation':       {label:'Excavation / Earth',  color:'#a16207'},
+    'scaffolding':      {label:'Scaffolding',          color:'#854d0e'},
+    'generator':        {label:'Generator / Power',    color:'#fbbf24'},
+    'forklift':         {label:'Forklift / Material',  color:'#d97706'},
+    'compactor_paving': {label:'Compactor / Paving',   color:'#b45309'},
+    'general_tool':     {label:'General Tool Rental',  color:'#92400e'},
+  },
+  dumpster: {
+    'rolloff':          {label:'Roll-Off Container',   color:'#f97316'},
+    'commercial_waste': {label:'Commercial Waste',     color:'#ea580c'},
+    'debris_removal':   {label:'Debris / Cleanup',     color:'#c2410c'},
+  },
+  porta_potty: {
+    'construction_san': {label:'Construction Sanitation', color:'#22c55e'},
+    'event_san':        {label:'Event Sanitation',     color:'#16a34a'},
+    'luxury_restroom':  {label:'Luxury Restroom',      color:'#15803d'},
+  },
+  waste: {
+    'municipal':        {label:'Municipal / Commercial', color:'#06b6d4'},
+    'recycling':        {label:'Recycling Facility',   color:'#0891b2'},
+    'hazardous':        {label:'Hazardous / Industrial', color:'#0e7490'},
+    'transfer_station': {label:'Transfer Station',     color:'#155e75'},
+  },
+  propane: {
+    'residential_lp':   {label:'Residential LP Gas',  color:'#a855f7'},
+    'commercial_lp':    {label:'Commercial / Industrial LP', color:'#9333ea'},
+    'heating_oil':      {label:'Heating Oil',          color:'#7c3aed'},
+    'bulk_fuel':        {label:'Bulk Fuel Delivery',   color:'#6d28d9'},
+  },
+  septic: {
+    'septic_pump':      {label:'Septic Pumping',       color:'#eab308'},
+    'drain_clean':      {label:'Drain Cleaning',       color:'#ca8a04'},
+    'grease_trap':      {label:'Grease Trap',          color:'#a16207'},
+  },
+  junk_removal: {
+    'residential_junk': {label:'Residential Junk',     color:'#fb7185'},
+    'commercial_junk':  {label:'Commercial Junk',      color:'#f43f5e'},
+    'estate_cleanout':  {label:'Estate Cleanout',      color:'#e11d48'},
+  },
+};
+
+// Sub-vertical rules — checked after main vertical is known
+const SUB_RULES = {
+  equipment: [
+    {pat:/crane|rigging|lift.*crane|crane.*service/i, sv:'crane_rigging'},
+    {pat:/aerial.?lift|boom.?lift|scissor.?lift|man.?lift|jlg|genie.*lift|sky.?lift/i, sv:'aerial_lift'},
+    {pat:/excavat|backhoe|bulldoz|grader|earthmov|earthwork|grading/i, sv:'excavation'},
+    {pat:/scaffold/i, sv:'scaffolding'},
+    {pat:/generator|power.?equip|genset/i, sv:'generator'},
+    {pat:/forklift|pallet.?jack|telehandler|reach.?truck/i, sv:'forklift'},
+    {pat:/compactor|paving|asphalt|roller|plate.?compact/i, sv:'compactor_paving'},
+  ],
+  dumpster: [
+    {pat:/roll.?off|rolloff|container.?rental/i, sv:'rolloff'},
+    {pat:/commercial.?waste|commercial.*dumpster/i, sv:'commercial_waste'},
+    {pat:/debris|cleanup|clean.?up|hauling/i, sv:'debris_removal'},
+  ],
+  porta_potty: [
+    {pat:/event|festival|wedding|concert|fair|outdoor.?event/i, sv:'event_san'},
+    {pat:/luxury|restroom.?trailer|vip.?restroom|upscale/i, sv:'luxury_restroom'},
+    {pat:/construction|jobsite|job.?site|worksite/i, sv:'construction_san'},
+  ],
+  waste: [
+    {pat:/recycle|recycling|e.?waste|e-waste/i, sv:'recycling'},
+    {pat:/hazardous|industrial.?waste|chemical.?waste|medical.?waste/i, sv:'hazardous'},
+    {pat:/transfer.?station/i, sv:'transfer_station'},
+    {pat:/municipal|commercial.?collect|residential.?collect/i, sv:'municipal'},
+  ],
+  propane: [
+    {pat:/heating.?oil|fuel.?oil|home.?heat/i, sv:'heating_oil'},
+    {pat:/bulk.?fuel|diesel|fleet.?fuel/i, sv:'bulk_fuel'},
+    {pat:/commercial|industrial.*propane|business.*propane/i, sv:'commercial_lp'},
+    {pat:/residential|home.*propane|propane.?deliver/i, sv:'residential_lp'},
+  ],
+  septic: [
+    {pat:/grease.?trap|grease.?interceptor/i, sv:'grease_trap'},
+    {pat:/drain.?clean|hydro.?jet|rooter|roto.?root/i, sv:'drain_clean'},
+    {pat:/septic|cesspool|holding.?tank/i, sv:'septic_pump'},
+  ],
+  junk_removal: [
+    {pat:/estate|cleanout|clean.?out/i, sv:'estate_cleanout'},
+    {pat:/commercial|office|business|corporate/i, sv:'commercial_junk'},
+  ],
+};
+
+function getSubVertical(vertical, co){
+  if(!vertical||vertical==='other')return null;
+  const rules=SUB_RULES[vertical];
+  if(!rules)return null;
+  const combined=(co.categories||'')+' '+(co.name||'')+' '+(co.description||'');
+  for(const rule of rules){
+    if(rule.pat.test(combined))return rule.sv;
+  }
+  // Default sub-verticals
+  const defaults={equipment:'general_tool',dumpster:'rolloff',porta_potty:'construction_san',
+    waste:'municipal',propane:'residential_lp',septic:'septic_pump',junk_removal:'residential_junk'};
+  return defaults[vertical]||null;
+}
+
+function subVertLabel(vertical, sv){
+  if(!vertical||!sv)return null;
+  return SUB_VERTICALS[vertical]?.[sv]?.label||null;
+}
+
+/* ══════════════════════════════════════════
    CLASSIFICATION
 ══════════════════════════════════════════ */
+/* ══════════════════════════════════════════
+   TIERED CLASSIFIER — cheap-first approach
+   Tier 1: SIC/NAICS lookup (free)
+   Tier 2: Category keywords (free)
+   Tier 3: Name keywords (free)
+   Tier 4: Claude API (only for ambiguous)
+══════════════════════════════════════════ */
+
+// SIC → vertical mappings (most common codes in PFG verticals)
+const SIC_MAP={
+  // Equipment rental
+  '7359':'equipment','73590':'equipment','7353':'equipment','73530':'equipment',
+  '5082':'equipment','50820':'equipment','5084':'equipment','7369':'equipment',
+  // Dumpster / waste hauling
+  '4953':'dumpster','49530':'dumpster','4959':'waste','49590':'waste',
+  '5093':'waste','50930':'waste',
+  // Porta potty / sanitation
+  '7699':'porta_potty','76990':'porta_potty','7389':'porta_potty',
+  '4959':'waste',
+  // Septic / drain
+  '1711':'septic','17110':'septic','7692':'septic','76920':'septic',
+  '1731':'septic',
+  // Propane / fuel
+  '5984':'propane','59840':'propane','5171':'propane','51710':'propane',
+  '5172':'propane','51720':'propane','5983':'propane',
+  // Waste management
+  '4212':'waste','42120':'waste','4213':'waste','4214':'waste',
+  '4215':'waste','4911':'waste',
+  // Junk removal
+  '4212':'junk_removal', // overlap — categories will disambiguate
+};
+
+// NAICS → vertical
+const NAICS_MAP={
+  // Equipment rental
+  '532412':'equipment','532310':'equipment','532420':'equipment','532490':'equipment',
+  '5324':'equipment','53241':'equipment',
+  // Waste collection / dumpster
+  '562111':'dumpster','562112':'waste','562119':'waste','5621':'waste',
+  '562920':'waste','562991':'waste',
+  // Porta potty / sanitation services
+  '562991':'porta_potty','56299':'porta_potty',
+  // Septic
+  '562991':'septic','238910':'septic','2389':'septic',
+  // Propane
+  '454310':'propane','42471':'propane','424710':'propane','447190':'propane',
+  // Junk / moving / hauling
+  '484210':'junk_removal','4842':'junk_removal','562119':'junk_removal',
+};
+
+// Category keyword → vertical (checked against Google Maps categories string)
+const CAT_RULES=[
+  // Most specific first
+  {pat:/roll.?off|dumpster.?rental|container.?rental|rolloff/i, v:'dumpster', conf:'high'},
+  {pat:/porta.?pott|portable.?toilet|portable.?restroom|portable.?sanitation|toilet.?rental/i, v:'porta_potty', conf:'high'},
+  {pat:/septic.?tank|drain.?clean|grease.?trap|cesspool|septic.?pump/i, v:'septic', conf:'high'},
+  {pat:/propane|lp.?gas|fuel.?oil|heating.?oil|diesel.?fuel.?deliver/i, v:'propane', conf:'high'},
+  {pat:/junk.?remov|junk.?haul|estate.?clean|debris.?remov|hauling.?service/i, v:'junk_removal', conf:'high'},
+  {pat:/equipment.?rent|heavy.?equipment|crane.?rent|forklift.?rent|aerial.?lift|boom.?lift|excavat.*rent|skid.?steer/i, v:'equipment', conf:'high'},
+  {pat:/waste.?manag|garbage.?collect|trash.?collect|recycl.*facilit|transfer.?station|landfill/i, v:'waste', conf:'high'},
+  // Medium confidence
+  {pat:/dumpster|roll.?off/i, v:'dumpster', conf:'medium'},
+  {pat:/sanitation/i, v:'porta_potty', conf:'medium'},
+  {pat:/septic/i, v:'septic', conf:'medium'},
+  {pat:/propane|fuel.?deliver/i, v:'propane', conf:'medium'},
+  {pat:/junk.?removal|junk removal/i, v:'junk_removal', conf:'medium'},
+  {pat:/equipment.?rental|tool.?rental/i, v:'equipment', conf:'medium'},
+  {pat:/waste.?collect|refuse.?collect/i, v:'waste', conf:'medium'},
+];
+
+// Company NAME keyword rules (lower confidence — names can be misleading)
+const NAME_RULES=[
+  {pat:/roll.?off|dumpster/i, v:'dumpster', conf:'medium'},
+  {pat:/porta.?pott|port.?a.?john|port.?a.?pot|sanipot|sanitation.?station/i, v:'porta_potty', conf:'medium'},
+  {pat:/septic|drain.?king|roto.?root|drainpro/i, v:'septic', conf:'low'},
+  {pat:/propane|lp.?gas/i, v:'propane', conf:'medium'},
+  {pat:/junk.?king|junk.?removal|got.?junk|junk.?pro|college.?hunk/i, v:'junk_removal', conf:'high'},
+  {pat:/waste.?connect|waste.?manag|republic.?service|casella|rumpke/i, v:'waste', conf:'high'},
+  {pat:/equipment.?rental|tool.?rental|sunbelt|united.?rental|herc.?rent/i, v:'equipment', conf:'high'},
+];
+
+function tierClassify(co){
+  const sic=(co.sic||'').replace(/[^0-9]/g,'').slice(0,5);
+  const naics=(co.naics||'').replace(/[^0-9]/g,'').slice(0,6);
+  const cats=co.categories||'';
+  const name=co.name||'';
+
+  // Tier 1: SIC (from dynamic config)
+  if(sic){
+    const v=SIC_MAP_DYN[sic]||SIC_MAP_DYN[sic.slice(0,4)]||SIC_MAP_DYN[sic.slice(0,3)];
+    if(v)return{vertical:v,confidence:'high',reason:`SIC ${sic}`,tier:1};
+  }
+  // Tier 1b: NAICS (from dynamic config)
+  if(naics){
+    const v=NAICS_MAP_DYN[naics]||NAICS_MAP_DYN[naics.slice(0,5)]||NAICS_MAP_DYN[naics.slice(0,4)];
+    if(v)return{vertical:v,confidence:'high',reason:`NAICS ${naics}`,tier:1};
+  }
+  const combined=cats+' '+name+' '+(co.description||'');
+  // Tier 2: Category keywords + exclusion check
+  for(const rule of CAT_RULES_DYN){
+    if(rule.pat.test(cats)){
+      const excRules=VERTICALS_CONFIG[rule.v]?.excludeRules||[];
+      const excMatch=excRules.find(ep=>ep.test(combined));
+      if(excMatch){
+        // Tag as excluded so we can find it later — don't just ignore
+        const excReason=(combined.match(excMatch)||[''])[0].slice(0,40);
+        return{vertical:'other',confidence:'high',reason:`Excluded from ${rule.v}: "${excReason}"`,tier:2,excluded:true,excludedFrom:rule.v};
+      }
+      return{vertical:rule.v,confidence:rule.conf,reason:`Category: ${(cats.match(rule.pat)||[''])[0].slice(0,30)}`,tier:2};
+    }
+  }
+  // Tier 3: Name keywords + exclusion check
+  for(const rule of NAME_RULES_DYN){
+    if(rule.pat.test(name)){
+      const excRules=VERTICALS_CONFIG[rule.v]?.excludeRules||[];
+      const excMatch=excRules.find(ep=>ep.test(combined));
+      if(excMatch){
+        const excReason=(combined.match(excMatch)||[''])[0].slice(0,40);
+        return{vertical:'other',confidence:'high',reason:`Excluded from ${rule.v}: "${excReason}"`,tier:3,excluded:true,excludedFrom:rule.v};
+      }
+      return{vertical:rule.v,confidence:rule.conf,reason:`Name: ${(name.match(rule.pat)||[''])[0].slice(0,30)}`,tier:3};
+    }
+  }
+  // Needs API
+  return null;
+}
+
+function tierClassifyFull(co){
+  const result=tierClassify(co);
+  if(result){
+    result.sub_vertical=getSubVertical(result.vertical,co);
+  }
+  return result;
+}
+
+
 const SYS=`You classify companies into B2B sales verticals for a decal and print company. Precision matters.
 
 VERTICALS:
@@ -1925,6 +2410,36 @@ Confidence: high=2+ clear signals | medium=1 clear signal | low=ambiguous
 Return ONLY a valid JSON array — no markdown, no text before or after.`;
 
 function buildMsg(cos){const items=cos.map((c,i)=>{const p=[];if(c.categories)p.push(`Categories: "${c.categories.slice(0,200)}"`);if(c.sic)p.push(`SIC: ${c.sic}`);if(c.naics)p.push(`NAICS: ${c.naics}`);const l1=`[${i+1}] "${c.name}"${p.length?' | '+p.join(' | '):''}`;const l2=c.description?`     Desc: "${c.description.slice(0,300)}"` :'';return l2?l1+'\n'+l2:l1;}).join('\n');return`Classify these ${cos.length} companies:\n\n${items}\n\nReturn JSON array of exactly ${cos.length} objects:\n[{"vertical":"...","confidence":"high|medium|low","reason":"max 10 words"}]`;}
+function saveOpenAIKey(){const k=document.getElementById('cfg-openai')?.value.trim();if(k)sessionStorage.setItem('openai_key',k);}
+
+async function callAPIGPT(cos){
+  const key=sessionStorage.getItem('openai_key');
+  if(!key)throw new Error('No OpenAI API key — add it in the classify panel');
+  const vKeys=Object.keys(VERTICALS_CONFIG).filter(k=>k!=='other');
+  const prompt=buildMsg(cos); // reuse same prompt builder
+  const resp=await fetch('https://api.openai.com/v1/chat/completions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+    body:JSON.stringify({
+      model:'gpt-4o-mini',
+      max_tokens:2048,
+      messages:[
+        {role:'system',content:buildSystemPrompt()},
+        {role:'user',content:prompt}
+      ],
+      response_format:{type:'json_object'},
+      temperature:0,
+    })
+  });
+  if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error?.message||`OpenAI HTTP ${resp.status}`);}
+  const data=await resp.json();
+  const text=data.choices?.[0]?.message?.content||'';
+  const match=text.match(/\[[\s\S]*\]/);
+  if(!match)throw new Error('No JSON array in GPT response');
+  let parsed;try{parsed=JSON.parse(match[0]);}catch(e){throw new Error('GPT JSON parse failed');}
+  return cos.map((_,i)=>{const r=parsed[i]||{};return{vertical:vKeys.includes(r.vertical)?r.vertical:'other',confidence:['high','medium','low'].includes(r.confidence)?r.confidence:'low',reason:String(r.reason||'').slice(0,200)};});
+}
+
 async function callAPI(cos,ant){const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ant,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4096,system:SYS,messages:[{role:'user',content:buildMsg(cos)}]})});if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error?.message||`HTTP ${resp.status}`);}const data=await resp.json();const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');const match=text.match(/\[[\s\S]*\]/);if(!match)throw new Error('No JSON array in response');let parsed;try{parsed=JSON.parse(match[0]);}catch(e){throw new Error('JSON parse failed');}const vk=Object.keys(V);return cos.map((_,i)=>{const r=parsed[i]||{};return{vertical:vk.includes(r.vertical)?r.vertical:'other',confidence:['high','medium','low'].includes(r.confidence)?r.confidence:'low',reason:String(r.reason||'').slice(0,200)};});}
 function setLane(i,state,text){const l=document.getElementById('lane-'+i),lv=document.getElementById('lv-'+i);if(!l)return;l.className='lane'+(state?' '+state:'');lv.textContent=text;}
 
@@ -1937,19 +2452,62 @@ async function startClassify(){
   const{count:totalPend}=await sbClient.from('companies').select('id',{count:'exact',head:true}).eq('status','pending');
   sessionTotal=Math.min(totalPend||0,limit);sessionDone=0;sessionStart=Date.now();
   if(!sessionTotal){toast('No pending companies','info');resetProcUI();return;}
-  addLog(`Starting — ${sessionTotal.toLocaleString()} companies | ${conc}×${bSz} parallel`,'start');updateProg(0,sessionTotal);
+  addLog(`Starting — ${sessionTotal.toLocaleString()} companies | Tier 1-3 rules first, then Claude API`,'start');updateProg(0,sessionTotal);
+
+  let tierCounts={t1:0,t2:0,t3:0,api:0};
+
   while(!shouldPause&&sessionDone<sessionTotal){
     const{data:cos}=await sbClient.from('companies').select('id,name,categories,description,sic,naics').eq('status','pending').limit(Math.min(fSz,sessionTotal-sessionDone));if(!cos||!cos.length)break;
     await sbClient.from('companies').update({status:'processing'}).in('id',cos.map(c=>c.id));
-    const chunks=[];for(let i=0;i<cos.length;i+=bSz)chunks.push(cos.slice(i,i+bSz));
-    chunks.forEach((ch,i)=>setLane(i,'active',`${ch.length} companies...`));
-    const results=await Promise.allSettled(chunks.map((ch,i)=>callAPI(ch,ant).then(r=>{setLane(i,'done',`✓ ${ch.length}`);return r;}).catch(e=>{setLane(i,'err','Error');throw e;})));
-    const writes=[];chunks.forEach((chunk,ci)=>{const res=results[ci];chunk.forEach((co,j)=>{if(res.status==='fulfilled'){const r=res.value[j]||{vertical:'other',confidence:'low',reason:'parse error'};const st=r.confidence==='low'?'needs_review':'done';writes.push(sbClient.from('companies').update({vertical:r.vertical,confidence:r.confidence,reason:r.reason,status:st,classified_at:new Date().toISOString()}).eq('id',co.id));}else writes.push(sbClient.from('companies').update({status:'error',reason:res.reason?.message||'API error'}).eq('id',co.id));});});
-    for(let i=0;i<writes.length;i+=200)await Promise.all(writes.slice(i,i+200));
-    sessionDone+=cos.length;addLog(`Round: ${cos.length} processed`,'ok');updateProg(sessionDone,sessionTotal);updateRateETA();document.getElementById('pc-done').textContent=sessionDone.toLocaleString();await delay(200);
+
+    // ── TIER 1-3: rule-based (free, instant) ──
+    const ruleResults=[];const needsAPI=[];
+    cos.forEach(co=>{
+      const r=tierClassifyFull(co);
+      if(r){ruleResults.push({id:co.id,...r});tierCounts['t'+r.tier]=(tierCounts['t'+r.tier]||0)+1;} 
+      else needsAPI.push(co);
+    });
+
+    // Write rule-based results immediately
+    if(ruleResults.length){
+      const writes=ruleResults.map(r=>{
+        const isExcluded=r.excluded===true;
+        // Excluded companies: tag='excluded:vertical', status=done so they don't re-queue
+        const existingTags=allBrowse.find(co=>co.id===r.id)?.tags||'';
+        const tagParts=existingTags.split(',').filter(t=>t&&!t.startsWith('excluded'));
+        if(isExcluded)tagParts.push(`excluded:${r.excludedFrom}`);
+        return sbClient.from('companies').update({
+          vertical:r.vertical,sub_vertical:r.sub_vertical||null,
+          confidence:r.confidence,reason:r.reason,
+          tags:tagParts.length?tagParts.join(','):null,
+          status:'done', // done so it doesn't re-queue, but tagged for future reference
+          classified_at:new Date().toISOString()
+        }).eq('id',r.id);
+      });
+      for(let i=0;i<writes.length;i+=200)await Promise.all(writes.slice(i,i+200));
+    }
+
+    // ── TIER 4: Claude API only for ambiguous ──
+    if(needsAPI.length){
+      tierCounts.api+=needsAPI.length;
+      setLane(0,'active',`API: ${needsAPI.length} ambiguous...`);
+      const chunks=[];for(let i=0;i<needsAPI.length;i+=bSz)chunks.push(needsAPI.slice(i,i+bSz));
+      const useGPT=document.querySelector('input[name="classify-api"]:checked')?.value==='gpt4mini';
+      const apiFn=useGPT?(ch)=>callAPIGPT(ch):(ch)=>callAPI(ch,ant);
+      const results=await Promise.allSettled(chunks.map((ch,i)=>apiFn(ch).then(r=>{setLane(i,'done',`✓ ${ch.length} [${useGPT?'GPT':'AI'}]`);return r;}).catch(e=>{setLane(i,'err','Error');throw e;})));
+      const apiWrites=[];chunks.forEach((chunk,ci)=>{const res=results[ci];chunk.forEach((co,j)=>{if(res.status==='fulfilled'){const r=res.value[j]||{vertical:'other',confidence:'low',reason:'parse error'};const st=r.confidence==='low'?'needs_review':'done';const sv=getSubVertical(r.vertical,co);apiWrites.push(sbClient.from('companies').update({vertical:r.vertical,sub_vertical:sv||null,confidence:r.confidence,reason:'[AI] '+r.reason,status:st,classified_at:new Date().toISOString()}).eq('id',co.id));}else apiWrites.push(sbClient.from('companies').update({status:'error',reason:res.reason?.message||'API error'}).eq('id',co.id));});});
+      for(let i=0;i<apiWrites.length;i+=200)await Promise.all(apiWrites.slice(i,i+200));
+    }
+
+    sessionDone+=cos.length;
+    const savings=Math.round((1-tierCounts.api/sessionDone)*100);
+    addLog(`${cos.length} processed — Rules: ${ruleResults.length} | API: ${needsAPI.length} | ${savings}% API savings so far`,'ok');
+    updateProg(sessionDone,sessionTotal);updateRateETA();document.getElementById('pc-done').textContent=sessionDone.toLocaleString();await delay(50);
   }
-  const elapsed=((Date.now()-sessionStart)/1000).toFixed(0);if(!shouldPause)addLog(`Done — ${sessionDone.toLocaleString()} in ${elapsed}s`,'done');
-  toast(shouldPause?`Paused at ${sessionDone}`:`Done — ${sessionDone.toLocaleString()} classified`,'ok');
+  const elapsed=((Date.now()-sessionStart)/1000).toFixed(0);
+  const apiSavings=sessionDone>0?Math.round((1-(tierCounts.api||0)/sessionDone)*100):0;
+  if(!shouldPause)addLog(`Done — ${sessionDone.toLocaleString()} in ${elapsed}s | SIC/NAICS: ${tierCounts.t1||0} | Categories: ${tierCounts.t2||0} | Name: ${tierCounts.t3||0} | API: ${tierCounts.api||0} | ${apiSavings}% free`,'done');
+  toast(shouldPause?`Paused at ${sessionDone}`:`Done — ${sessionDone.toLocaleString()} classified · ${apiSavings}% used free rules`,'ok');
   resetProcUI();loadDash();loadBrowse();
 }
 function pauseClassify(){shouldPause=true;document.getElementById('btn-pause').disabled=true;addLog('Pausing...','info');}
@@ -1996,7 +2554,7 @@ async function loadBrowse(){
   // Paginate companies to bypass project row limit
   let allCoData=[];let coOffset=0;
   while(true){
-    const{data:page}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count,created_at').order('created_at',{ascending:false}).range(coOffset,coOffset+999);
+    const{data:page}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,sub_vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count,created_at').order('created_at',{ascending:false}).range(coOffset,coOffset+999);
     if(!page||!page.length)break;
     allCoData.push(...page);
     if(page.length<1000)break;
@@ -2037,12 +2595,22 @@ function filterBrowse(){
   let rows=allBrowse;
   if(q)rows=rows.filter(r=>(r.name||'').toLowerCase().includes(q)||(r.website||'').toLowerCase().includes(q)||(r.state||'').toLowerCase().includes(q));
   if(v)rows=rows.filter(r=>r.vertical===v);
+  const sv=document.getElementById('br-subvert')?.value||'';
+  if(sv)rows=rows.filter(r=>r.sub_vertical===sv);
   if(s)rows=rows.filter(r=>r.status===s);
   if(st)rows=rows.filter(r=>(r.state||'').toUpperCase()===st);
   if(srcF)rows=rows.filter(r=>r.source_file===srcF);
   if(nw)rows=rows.filter(r=>!r.website);
   if(instF==='none')rows=rows.filter(r=>!r.inst_status);
   else if(instF)rows=rows.filter(r=>r.inst_status===instF);
+  const exclF=document.getElementById('br-excl')?.value||'';
+  if(exclF){
+    if(exclF==='excluded'){
+      rows=rows.filter(r=>(r.tags||'').includes('excluded:'));
+    } else {
+      rows=rows.filter(r=>(r.tags||'').split(',').includes(exclF));
+    }
+  }
   if(ctF){rows=rows.filter(r=>{const lsEmail=r.contact_email||'';const lsDirect=lsEmail&&!isGenericEmail(lsEmail);const cts=r._ctStats;const totalC=(cts?.total||0)+(lsEmail?1:0);const directC=(cts?.direct||0)+(lsDirect?1:0);if(ctF==='none')return totalC===0;if(ctF==='generic')return totalC>0&&directC===0;if(ctF==='direct')return directC>0;return true;});}
   rows=[...rows].sort((a,b)=>{if(browseSort.col==='_score'){const sa=calcScore(a),sb=calcScore(b);return browseSort.dir==='asc'?sa-sb:sb-sa;}const av=String(a[browseSort.col]||'').toLowerCase(),bv=String(b[browseSort.col]||'').toLowerCase();return browseSort.dir==='asc'?av.localeCompare(bv):bv.localeCompare(av);});
   document.getElementById('br-count').textContent=`Showing ${rows.length.toLocaleString()} of ${allBrowse.length.toLocaleString()}`;
@@ -2059,7 +2627,15 @@ function filterBrowse(){
   </tr></thead><tbody>`;
   rows.forEach(r=>{
     const sel=selectedRows.has(r.id);const sc=calcScore(r);const tier=scoreTier(sc);
-    const tagBadges=(r.tags||'').split(',').filter(Boolean).map(t=>`<span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;background:${t==='enterprise'?'rgba(59,130,246,.15)':'rgba(234,179,8,.15)'};color:${t==='enterprise'?'var(--blue)':'var(--yellow)'}">${t}</span>`).join('');
+    const tagBadges=(r.tags||'').split(',').filter(Boolean).map(t=>{
+      const isExcl=t.startsWith('excluded:');
+      const isEnterprise=t==='enterprise';
+      const isGovt=t==='government';
+      const bg=isExcl?'rgba(100,116,139,.2)':isEnterprise?'rgba(59,130,246,.15)':'rgba(234,179,8,.15)';
+      const col=isExcl?'var(--muted)':isEnterprise?'var(--blue)':'var(--yellow)';
+      const label=isExcl?'excl:'+t.split(':')[1]:t;
+      return`<span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;background:${bg};color:${col}">${label}</span>`;
+    }).join('');
     const cts=r._ctStats;const lsEmail=r.contact_email||'';const lsGeneric=lsEmail&&isGenericEmail(lsEmail);const lsDirect=lsEmail&&!lsGeneric;const totalContacts=(cts?.total||0)+(lsEmail?1:0);const directContacts=(cts?.direct||0)+(lsDirect?1:0);
     let ctBadge;
     if(totalContacts===0)ctBadge='<span style="color:var(--red);font-size:11px" title="No contact email found">❌</span>';
@@ -2092,6 +2668,16 @@ async function deleteNoWebsite(){if(!sbClient)return;const{data}=await sbClient.
 // BULK
 function toggleRowSelect(id,cb){if(cb.checked)selectedRows.add(id);else selectedRows.delete(id);const tr=document.getElementById('brow-'+id);if(tr)tr.classList.toggle('selected',cb.checked);updateBulkBar();}
 function toggleSelectAll(cb){const tbl=document.getElementById('br-table');tbl.querySelectorAll('tbody tr').forEach(tr=>{const rowId=tr.id.replace('brow-','');const checkbox=tr.querySelector('input[type=checkbox]');if(checkbox){checkbox.checked=cb.checked;if(cb.checked)selectedRows.add(rowId);else selectedRows.delete(rowId);tr.classList.toggle('selected',cb.checked);}});updateBulkBar();}
+function updateSubVertFilter(){
+  const v=document.getElementById('br-vert').value;
+  const sel=document.getElementById('br-subvert');
+  if(!sel)return;
+  if(!v||!SUB_VERTICALS[v]){sel.style.display='none';sel.value='';return;}
+  const subs=SUB_VERTICALS[v];
+  sel.innerHTML='<option value="">All Sub-Verticals</option>'+Object.entries(subs).map(([k,s])=>`<option value="${k}">${s.label}</option>`).join('');
+  sel.style.display='';
+}
+
 function updateBulkBar(){const n=selectedRows.size;document.getElementById('bulk-bar').classList.toggle('show',n>0);document.getElementById('bulk-count').textContent=`${n} selected`;}
 function clearBulk(){selectedRows.clear();updateBulkBar();filterBrowse();}
 async function bulkDelete(){if(!selectedRows.size)return;if(!confirm(`Delete ${selectedRows.size} companies?`))return;const ids=[...selectedRows];for(let i=0;i<ids.length;i+=200)await sbClient.from('companies').delete().in('id',ids.slice(i,i+200));allBrowse=allBrowse.filter(r=>!selectedRows.has(r.id));selectedRows.clear();updateBulkBar();filterBrowse();loadDash();toast(`Deleted ${ids.length}`,'ok');}
@@ -2118,7 +2704,13 @@ async function openDrawer(id){
     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Override</div><div style="display:flex;gap:6px;align-items:center"><input type="number" id="dr-score-override" min="0" max="100" value="${isOverride?co.score_override:''}" placeholder="auto" style="background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:5px 8px;color:var(--text);font-family:var(--mono);font-size:13px;width:72px;outline:none;text-align:center"/><button class="btn btn-o btn-sm" onclick="saveScoreOverride('${id}')">Set</button>${isOverride?`<button class="btn btn-g btn-sm" onclick="clearScoreOverride('${id}')">Clear</button>`:''}</div><div style="font-size:10px;color:var(--muted2)">0–100, blank = auto</div></div>
   </div>`;
   if(co.inst_status){const instColor=co.inst_status==='replied'?'var(--green)':co.inst_status==='bounced'||co.inst_status==='unsubscribed'?'var(--red)':'var(--yellow)';const instEmoji=co.inst_status==='replied'?'💬':co.inst_status==='bounced'?'❌':co.inst_status==='unsubscribed'?'🚫':'📤';const lastDate=co.inst_last_contacted?new Date(co.inst_last_contacted).toLocaleDateString():'unknown date';html+=`<div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.3);border-radius:8px;padding:12px 14px;margin-bottom:16px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div style="font-family:var(--mono);font-size:10px;font-weight:700;color:${instColor};letter-spacing:.08em;text-transform:uppercase">${instEmoji} Already in Instantly</div><span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${co.inst_contacted_count||0} contact${(co.inst_contacted_count||0)!==1?'s':''} emailed</span></div><div style="font-size:12px;color:var(--muted)">Status: <strong style="color:${instColor}">${co.inst_status}</strong> · Last: <strong style="color:var(--text)">${lastDate}</strong></div>${co.inst_campaign?`<div style="font-size:11px;color:var(--muted);margin-top:3px;font-family:var(--mono)">Campaign: ${esc(co.inst_campaign)}</div>`:''}</div>`;}
-  html+=`<div class="dr-section"><h4>Vertical</h4><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">${Object.entries(V).map(([k,v])=>`<button class="vp" style="${co.vertical===k?`background:${v.color};color:#000;border-color:${v.color}`:''}" onclick="drawerSetVert('${id}','${k}')">${v.emoji} ${v.label.split('/')[0]}</button>`).join('')}</div>${co.confidence?`<div style="font-size:11px;color:var(--muted)">Confidence: <span style="color:${co.confidence==='high'?'var(--green)':co.confidence==='medium'?'var(--yellow)':'var(--red)'}">${co.confidence}</span> · ${esc(co.reason||'')}</div>`:''}
+  const svLabel=co.sub_vertical&&co.vertical&&SUB_VERTICALS[co.vertical]?.[co.sub_vertical]?SUB_VERTICALS[co.vertical][co.sub_vertical].label:null;
+  html+=`<div class="dr-section"><h4>Vertical</h4>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">${Object.entries(V).map(([k,v])=>`<button class="vp" style="${co.vertical===k?`background:${v.color};color:#000;border-color:${v.color}`:''}" onclick="drawerSetVert('${id}','${k}')">${v.emoji} ${v.label.split('/')[0]}</button>`).join('')}</div>
+    ${(co.tags||'').includes('excluded:')?`<div style="font-size:11px;color:var(--muted);padding:6px 0">This company was auto-excluded. Assigning a vertical above will un-exclude it.</div>`:''}
+    ${svLabel?`<div style="margin-bottom:8px"><span style="font-family:var(--mono);font-size:10px;color:var(--muted)">Sub-vertical: </span><span style="font-family:var(--mono);font-size:10px;padding:2px 8px;background:var(--s3);border:1px solid var(--bd2);border-radius:4px;color:var(--text)">${esc(svLabel)}</span></div>`:''}
+    ${co.vertical&&SUB_VERTICALS[co.vertical]?`<div style="margin-bottom:8px"><span style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Change Sub-vertical</span><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">${Object.entries(SUB_VERTICALS[co.vertical]).map(([k,s])=>`<button class="vp" style="font-size:9px;padding:3px 8px;${co.sub_vertical===k?`background:${s.color};color:#000;border-color:${s.color}`:''}" onclick="drawerSetSubVert('${id}','${k}')">${esc(s.label)}</button>`).join('')}</div></div>`:''}
+    ${co.confidence?`<div style="font-size:11px;color:var(--muted)">Confidence: <span style="color:${co.confidence==='high'?'var(--green)':co.confidence==='medium'?'var(--yellow)':'var(--red)'}">${co.confidence}</span> · ${esc(co.reason||'')}</div>`:''}</div>`;
   </div>`;
   html+=`<div class="dr-section"><h4>Company Details</h4><div class="dr-grid">`;
   [['Website',co.website?`<a href="https://${esc(co.website)}" target="_blank">${esc(co.website)}</a>`:null,'link'],['State',co.state],['City',co.city],['Revenue',co.revenue],['Employees',co.employees],['Locations',(co.location_count||1)>1?String(co.location_count):null],['SIC',co.sic],['NAICS',co.naics],['LinkedIn',co.linkedin?`<a href="${esc(co.linkedin)}" target="_blank" style="color:var(--blue)">${esc(co.linkedin.replace('https://www.linkedin.com/','li.com/'))}</a>`:null,'link'],['Source',co.source_file]].forEach(([l,val,cls])=>{if(val)html+=`<div class="dr-field"><div class="dl">${l}</div><div class="dv ${cls||'mono'}">${val}</div></div>`;});html+=`</div>`;
@@ -2139,7 +2731,22 @@ async function openDrawer(id){
   // FIX 3: Auto-check Instantly for contacts with no synced status
   if(sessionStorage.getItem('inst_key')){drContacts.forEach((c,i)=>{if(c.email&&!c.instantly_status){const targetEl=document.getElementById('ict-'+i);if(targetEl)instCheckContact(c.email,targetEl);}});}
 }
-async function drawerSetVert(id,v){await sbClient.from('companies').update({vertical:v,status:'done',confidence:'high',reason:'Manually classified',classified_at:new Date().toISOString()}).eq('id',id);allBrowse=allBrowse.map(r=>r.id===id?{...r,vertical:v,status:'done'}:r);toast('→ '+V[v]?.label,'ok');document.querySelectorAll('#dr-body .vp').forEach(btn=>{btn.style.background='';btn.style.color='';btn.style.borderColor='';});}
+async function drawerSetSubVert(id, sv){
+  await sbClient.from('companies').update({sub_vertical:sv}).eq('id',id);
+  allBrowse=allBrowse.map(r=>r.id===id?{...r,sub_vertical:sv}:r);
+  toast('Sub-vertical → '+(SUB_VERTICALS[allBrowse.find(r=>r.id===id)?.vertical]?.[sv]?.label||sv),'ok');
+  openDrawer(id);
+}
+
+async function drawerSetVert(id,v){
+  // Remove excluded tags when manually assigning a vertical
+  const co=allBrowse.find(r=>r.id===id);
+  const newTags=(co?.tags||'').split(',').filter(t=>t&&!t.startsWith('excluded')).join(',')||null;
+  await sbClient.from('companies').update({vertical:v,status:'done',confidence:'high',reason:'Manually classified',classified_at:new Date().toISOString(),tags:newTags}).eq('id',id);
+  allBrowse=allBrowse.map(r=>r.id===id?{...r,vertical:v,status:'done',tags:newTags}:r);
+  toast('→ '+V[v]?.label,'ok');
+  document.querySelectorAll('#dr-body .vp').forEach(btn=>{btn.style.background='';btn.style.color='';btn.style.borderColor='';});
+}
 async function saveScoreOverride(id){const val=document.getElementById('dr-score-override').value.trim();const num=val===''?null:Math.min(100,Math.max(0,parseInt(val)));if(val!==''&&isNaN(num)){toast('Enter a number 0–100','err');return;}await sbClient.from('companies').update({score_override:num}).eq('id',id);allBrowse=allBrowse.map(r=>r.id===id?{...r,score_override:num}:r);toast(num==null?'Override cleared':`Score locked to ${num}`,'ok');openDrawer(id);}
 async function clearScoreOverride(id){await sbClient.from('companies').update({score_override:null}).eq('id',id);allBrowse=allBrowse.map(r=>r.id===id?{...r,score_override:null}:r);toast('Back to auto-score','ok');openDrawer(id);}
 async function reclassifySingle(){if(!currentDrawerId)return;await sbClient.from('companies').update({status:'pending',vertical:null,confidence:null,reason:null}).eq('id',currentDrawerId);allBrowse=allBrowse.map(r=>r.id===currentDrawerId?{...r,status:'pending',vertical:null}:r);closeDrawer();filterBrowse();toast('Set to pending — Classify tab → Start','ok');}
@@ -2474,6 +3081,16 @@ async function exportUnassigned(){if(!sbClient)return;const{data}=await sbClient
    HELPERS
 ══════════════════════════════════════════ */
 function normalizeDomain(url){if(!url)return'';let d=url.trim().toLowerCase();d=d.replace(/^https?:\/\//,'').replace(/^www\./,'');d=d.split(/[/?#:]/)[0];return d.trim();}
+// Generate vertical <option> elements from config — used by all dropdowns
+function vertOptions(includeOther=true,includeBlank=true,blankLabel='All Verticals'){
+  const blank=includeBlank?`<option value="">${blankLabel}</option>`:'';
+  const opts=Object.entries(VERTICALS_CONFIG)
+    .filter(([k])=>includeOther||k!=='other')
+    .map(([k,v])=>`<option value="${k}">${v.emoji} ${v.label}</option>`)
+    .join('');
+  return blank+opts;
+}
+
 function vbadge(k){const v=V[k]||V.other;return`<span class="vb" style="color:${v.color};border-color:${v.color}40;background:${v.bg}">${v.emoji} ${v.label}</span>`;}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function delay(ms){return new Promise(r=>setTimeout(r,ms));}
