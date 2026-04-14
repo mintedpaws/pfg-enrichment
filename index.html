@@ -438,8 +438,8 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
     <!-- FILTERS -->
     <div class="fr">
       <input type="text" id="br-search" placeholder="Search name, website, state..." oninput="filterBrowse()"/>
-      <select id="br-vert" onchange="filterBrowse();updateSubVertFilter()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option><option value="other">Other</option></select>
-      <select id="br-subvert" onchange="filterBrowse()" style="display:none"><option value="">All Sub-Verticals</option></select>
+      <select id="br-vert" onchange="filterBrowse()"><option value="">All Verticals</option><option value="dumpster">Dumpster</option><option value="junk_removal">Junk Removal</option><option value="equipment">Equipment</option><option value="propane">Propane</option><option value="porta_potty">Porta Potty</option><option value="septic">Septic</option><option value="waste">Waste</option><option value="other">Other</option></select>
+
       <select id="br-status" onchange="filterBrowse()"><option value="">All Status</option><option value="done">Done</option><option value="needs_review">Needs Review</option><option value="pending">Pending</option><option value="error">Error</option></select>
       <select id="br-state" onchange="filterBrowse()"><option value="">All States</option></select>
       <select id="br-inst" onchange="filterBrowse()"><option value="">All Instantly</option><option value="none">Not Contacted</option><option value="active">Active</option><option value="replied">Replied</option><option value="bounced">Bounced</option><option value="unsubscribed">Unsubscribed</option></select>
@@ -470,6 +470,18 @@ hr.dv{border:none;border-top:1px solid var(--bd);margin:14px 0;}
         <span id="co-ps" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:1px"></span>
       </div>
       <div id="co-mwrap" style="display:none;margin-top:14px">
+        <!-- Step 1: Vertical selector -->
+        <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:12px">
+          <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:10px">Step 1 — What vertical is this file?</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="import-vertical" style="background:var(--s1);border:1px solid var(--bd2);border-radius:6px;padding:7px 12px;color:var(--text);font-size:13px;outline:none;min-width:200px" onchange="updateImportPreview()">
+              <option value="">— select vertical —</option>
+            </select>
+            <div id="import-preview-badge" style="font-family:var(--mono);font-size:11px;color:var(--muted)">Select a vertical to see how many rows will be imported</div>
+          </div>
+          <div id="import-filter-detail" style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6"></div>
+        </div>
+        <div id="co-detect-summary" style="display:none;font-family:var(--mono);font-size:11px;padding:8px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;margin-bottom:10px;line-height:1.6"></div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px;letter-spacing:.05em;text-transform:uppercase">Confirm Column Mapping</div>
         <div class="mapper" id="co-mapper"></div>
         <div style="background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:14px;margin-bottom:14px">
@@ -999,7 +1011,7 @@ window.addEventListener('DOMContentLoaded',async()=>{
     });
   });
   // Populate all vertical dropdowns from VERTICALS_CONFIG
-  const vertSelectors=['br-vert','ct-fvert','nc-vert','bulk-vert-sel'];
+  const vertSelectors=['br-vert','ct-fvert','nc-vert','bulk-vert-sel','import-vertical'];
   vertSelectors.forEach(id=>{
     const el=document.getElementById(id);
     if(!el)return;
@@ -2056,6 +2068,36 @@ const DP={
 };
 
 function autoDetect(headers,fields){const m={};const hL=headers.map(h=>h.toLowerCase().trim());const used=new Set();fields.forEach(f=>{const pats=DP[f.key]||[f.key];for(let i=0;i<hL.length;i++){if(used.has(i))continue;const h=hL[i];const hit=pats.some(p=>{const pn=p.toLowerCase();if(h===pn)return true;if(h.replace(/[_\s]/g,' ')===pn)return true;if(pn.includes(' ')&&pn.split(' ').every(w=>w.length>2&&h.includes(w)))return true;return false;});if(hit){m[i]=f.key;used.add(i);break;}}});return m;}
+function updateImportPreview(){
+  const vertical=document.getElementById('import-vertical')?.value;
+  const badge=document.getElementById('import-preview-badge');
+  const detail=document.getElementById('import-filter-detail');
+  if(!coParsed||!vertical){
+    if(badge)badge.textContent='Select a vertical to see how many rows will be imported';
+    return;
+  }
+  const m=getMapping('co-mapper');
+  const nameCol=m.name, catCol=m.categories, websiteCol=m.website;
+  let kept=0, noWeb=0, noise=0;
+  coParsed.rows.forEach(row=>{
+    const website=websiteCol!==undefined?(row[websiteCol]||'').trim():'';
+    const cats=catCol!==undefined?(row[catCol]||''):'';
+    const name=nameCol!==undefined?(row[nameCol]||''):'';
+    const dom=normalizeDomain(website);
+    if(!dom){noWeb++;return;}
+    if(rowPassesVerticalFilter(vertical,cats,name)){kept++;}
+    else{noise++;}
+  });
+  const vLabel=V[vertical]?.label||vertical;
+  if(badge){
+    badge.innerHTML=`<span style="color:var(--green);font-weight:700">${kept} companies will be imported</span> · <span style="color:var(--red)">${noise} blocked as noise</span> · <span style="color:var(--muted)">${noWeb} skipped (no website)</span>`;
+  }
+  if(detail&&VERTICAL_FILTER[vertical]){
+    const kws=VERTICAL_FILTER[vertical].catKws.slice(0,4).join(', ');
+    detail.textContent=`Keeping rows where Google Categories or name contain: ${kws}...`;
+  }
+}
+
 function buildMapper(cId,headers,rows,fields,autoM){const opts='<option value="">— skip —</option>'+fields.map(f=>`<option value="${f.key}">${f.label}</option>`).join('');document.getElementById(cId).innerHTML='<div class="mapper-hdr"><span>Your Column</span><span>Sample Values</span><span>Maps To</span></div>'+headers.map((h,i)=>{const sample=rows.slice(0,3).map(r=>(r[i]||'').slice(0,50)).filter(Boolean).join(' · ');return`<div class="mapper-row"><div class="mr-name">${esc(h)}</div><div class="mr-sample">${esc(sample)}</div><div class="mr-sel"><select data-col="${i}">${opts}</select></div></div>`;}).join('');document.querySelectorAll(`#${cId} select[data-col]`).forEach(sel=>{const v=autoM[parseInt(sel.dataset.col)];if(v)sel.value=v;});}
 function getMapping(cId){const m={};document.querySelectorAll(`#${cId} select[data-col]`).forEach(sel=>{if(sel.value)m[sel.value]=parseInt(sel.dataset.col);});return m;}
 
@@ -2081,16 +2123,24 @@ function parseCompanyCSV(){
     buildMapper('co-mapper',first.parsed.headers,first.parsed.rows,CO_FIELDS,autoM);
     document.getElementById('co-mwrap').style.display='block';
     runQualityCheck(first.parsed.rows,autoM.name,autoM.website,autoM.state);
-    // Show detection summary — tells user which key columns were found vs missing
+    // Auto-detect vertical from filename
+    const suggestedVert=detectVerticalFromFilename(first.filename||'');
+    const vertSel=document.getElementById('import-vertical');
+    if(vertSel&&suggestedVert){
+      vertSel.value=suggestedVert;
+      setTimeout(updateImportPreview,100);
+    }
+    // Show column detection summary
     const invM=Object.fromEntries(Object.entries(autoM).map(([i,k])=>[k,parseInt(i)]));
-    const keyFields=['categories','sic','naics','description','state','revenue','employees'];
+    const keyFields=['categories','description','state','revenue'];
     const found=keyFields.filter(k=>invM[k]!==undefined);
     const missing=keyFields.filter(k=>invM[k]===undefined);
     const summEl=document.getElementById('co-detect-summary');
     if(summEl){
       summEl.style.display='block';
-      summEl.innerHTML=(found.length?`<span style="color:var(--green)">✓ Found: ${found.join(', ')}</span>`:'')
-        +(missing.length?` &nbsp;<span style="color:var(--yellow)">⚠ Not detected: ${missing.join(', ')} — map these manually below or data won't enrich</span>`:'');
+      summEl.innerHTML=(found.length?`<span style="color:var(--green)">✓ Columns found: ${found.join(', ')}</span>`:'')
+        +(missing.length?` &nbsp;<span style="color:var(--yellow)">⚠ Not detected: ${missing.join(', ')}</span>`:'')
+        +(suggestedVert?` &nbsp;<span style="color:var(--cyan)">📁 Vertical detected from filename: ${V[suggestedVert]?.label}</span>`:'');
     }
     return;
   }
@@ -2132,6 +2182,12 @@ async function importCompanies(){
       const cFirst=m.contact_first_name!==undefined?(row[m.contact_first_name]||null):null;const cLast=m.contact_last_name!==undefined?(row[m.contact_last_name]||null):null;const cRole=m.contact_role!==undefined?(row[m.contact_role]||null):null;
       let cEmail=null,secondaryEmail=null;
       if(rawContactEmail&&rawEmail&&rawContactEmail!==rawEmail){const contactGeneric=isGenericEmail(rawContactEmail);const rawGeneric=isGenericEmail(rawEmail);if(!contactGeneric){cEmail=rawContactEmail;secondaryEmail=rawEmail;}else if(!rawGeneric){cEmail=rawEmail;secondaryEmail=rawContactEmail;}else{cEmail=rawContactEmail;secondaryEmail=rawEmail;}}else cEmail=rawContactEmail||rawEmail||null;
+      // Apply vertical filter — block noise rows
+      const importVert=document.getElementById('import-vertical')?.value||'';
+      if(importVert&&!rowPassesVerticalFilter(importVert,
+        m.categories!==undefined?(row[m.categories]||''):'',
+        name)){filterSkipped++;continue;}
+
       if(domain&&existSet.has(domain)){
         // Enrich existing company with leadscraper data
         const existId=existDomainToId[domain];
@@ -2151,8 +2207,15 @@ async function importCompanies(){
         if(cLast)enrichFields.contact_last_name=cLast;
         if(cRole)enrichFields.contact_role=cRole;
         // Only reset to pending for re-classification if we now have categories/SIC that were missing
-        if((enrichFields.categories||enrichFields.sic||enrichFields.naics)&&Object.keys(enrichFields).length>0){
-          enrichFields.status='pending'; // re-classify with new data
+        const enrichVert=document.getElementById('import-vertical')?.value||'';
+        if(enrichVert&&enrichVert!=='other'){
+          // Stamp vertical from import selection — more reliable than re-classify
+          enrichFields.vertical=enrichVert;
+          enrichFields.confidence='high';
+          enrichFields.reason='Enriched from '+src;
+          enrichFields.status='done';
+        } else if((enrichFields.categories||enrichFields.sic||enrichFields.naics)&&Object.keys(enrichFields).length>0){
+          enrichFields.status='pending'; // queue for classifier
         }
         if(Object.keys(enrichFields).length>0){
           enrichUpdates[existId]=enrichFields;
@@ -2164,7 +2227,10 @@ async function importCompanies(){
       }
       if(domain&&batchDomMap.has(domain)){batchDupes++;const idx=batchDomMap.get(domain);toIns[idx]._lc=(toIns[idx]._lc||1)+1;if(!toIns[idx].contact_email&&cEmail){toIns[idx].contact_email=cEmail;toIns[idx].contact_first_name=cFirst;toIns[idx].contact_last_name=cLast;toIns[idx].contact_role=cRole;}else if(cEmail&&cEmail!==toIns[idx].contact_email)extraContacts.push({email:cEmail,first_name:cFirst,last_name:cLast,title:cRole,domain,match_status:'pending',source_file:src});if(secondaryEmail&&secondaryEmail!==toIns[idx].contact_email)extraContacts.push({email:secondaryEmail,domain,match_status:'pending',source_file:src});continue;}
       const tags=[];if(tagEnterprise||tagGovt){const t=detectTags(name,revenue,employees);if(t){if(tagEnterprise&&t.includes('enterprise'))tags.push('enterprise');if(tagGovt&&t.includes('government'))tags.push('government');}}
-      const entry={name,website:website||null,domain:domain||null,categories:m.categories!==undefined?((row[m.categories]||'').slice(0,500)||null):null,description:m.description!==undefined?((row[m.description]||'').slice(0,1000)||null):null,sic:m.sic!==undefined?(row[m.sic]||null):null,naics:m.naics!==undefined?(row[m.naics]||null):null,revenue:revenue||null,employees:employees||null,founded:m.founded!==undefined?(row[m.founded]||null):null,state:m.state!==undefined?(row[m.state]||null):null,city:m.city!==undefined?(row[m.city]||null):null,contact_first_name:cFirst,contact_last_name:cLast,contact_role:cRole,contact_email:cEmail,linkedin:m.linkedin!==undefined?(row[m.linkedin]||null):null,tags:tags.length?tags.join(','):null,location_count:1,status:'pending',source_file:src,_lc:1};
+      // If vertical selected at import time, stamp it directly (no classifier needed)
+      const importVertNow=document.getElementById('import-vertical')?.value||'';
+      const vertStatus=importVertNow&&importVertNow!=='other'?'done':'pending';
+      const entry={name,website:website||null,domain:domain||null,categories:m.categories!==undefined?((row[m.categories]||'').slice(0,500)||null):null,description:m.description!==undefined?((row[m.description]||'').slice(0,1000)||null):null,sic:m.sic!==undefined?(row[m.sic]||null):null,naics:m.naics!==undefined?(row[m.naics]||null):null,revenue:revenue||null,employees:employees||null,founded:m.founded!==undefined?(row[m.founded]||null):null,state:m.state!==undefined?(row[m.state]||null):null,city:m.city!==undefined?(row[m.city]||null):null,contact_first_name:cFirst,contact_last_name:cLast,contact_role:cRole,contact_email:cEmail,linkedin:m.linkedin!==undefined?(row[m.linkedin]||null):null,tags:tags.length?tags.join(','):null,location_count:1,status:vertStatus,vertical:importVertNow||null,confidence:importVertNow?'high':null,reason:importVertNow?'Imported from '+src:'',source_file:src,_lc:1};
       if(secondaryEmail)extraContacts.push({email:secondaryEmail,domain,match_status:'pending',source_file:src});
       toIns.push(entry);if(domain)batchDomMap.set(domain,toIns.length-1);
     }
@@ -2201,281 +2267,79 @@ async function importCompanies(){
   },300);
 }
 
-/* ══════════════════════════════════════════
-   SUB-VERTICAL CLASSIFICATION
-   More granular buckets within each vertical
-   for precise campaign targeting
-══════════════════════════════════════════ */
-
-const SUB_VERTICALS = {
-  equipment: {
-    'crane_rigging':    {label:'Crane & Rigging',     color:'#f97316'},
-    'aerial_lift':      {label:'Aerial / Boom Lift',  color:'#fb923c'},
-    'excavation':       {label:'Excavation / Earth',  color:'#a16207'},
-    'scaffolding':      {label:'Scaffolding',          color:'#854d0e'},
-    'generator':        {label:'Generator / Power',    color:'#fbbf24'},
-    'forklift':         {label:'Forklift / Material',  color:'#d97706'},
-    'compactor_paving': {label:'Compactor / Paving',   color:'#b45309'},
-    'general_tool':     {label:'General Tool Rental',  color:'#92400e'},
-  },
-  dumpster: {
-    'rolloff':          {label:'Roll-Off Container',   color:'#f97316'},
-    'commercial_waste': {label:'Commercial Waste',     color:'#ea580c'},
-    'debris_removal':   {label:'Debris / Cleanup',     color:'#c2410c'},
-  },
-  porta_potty: {
-    'construction_san': {label:'Construction Sanitation', color:'#22c55e'},
-    'event_san':        {label:'Event Sanitation',     color:'#16a34a'},
-    'luxury_restroom':  {label:'Luxury Restroom',      color:'#15803d'},
-  },
-  waste: {
-    'municipal':        {label:'Municipal / Commercial', color:'#06b6d4'},
-    'recycling':        {label:'Recycling Facility',   color:'#0891b2'},
-    'hazardous':        {label:'Hazardous / Industrial', color:'#0e7490'},
-    'transfer_station': {label:'Transfer Station',     color:'#155e75'},
-  },
-  propane: {
-    'residential_lp':   {label:'Residential LP Gas',  color:'#a855f7'},
-    'commercial_lp':    {label:'Commercial / Industrial LP', color:'#9333ea'},
-    'heating_oil':      {label:'Heating Oil',          color:'#7c3aed'},
-    'bulk_fuel':        {label:'Bulk Fuel Delivery',   color:'#6d28d9'},
-  },
-  septic: {
-    'septic_pump':      {label:'Septic Pumping',       color:'#eab308'},
-    'drain_clean':      {label:'Drain Cleaning',       color:'#ca8a04'},
-    'grease_trap':      {label:'Grease Trap',          color:'#a16207'},
-  },
-  junk_removal: {
-    'residential_junk': {label:'Residential Junk',     color:'#fb7185'},
-    'commercial_junk':  {label:'Commercial Junk',      color:'#f43f5e'},
-    'estate_cleanout':  {label:'Estate Cleanout',      color:'#e11d48'},
-  },
-};
-
-// Sub-vertical rules — checked after main vertical is known
-const SUB_RULES = {
-  equipment: [
-    {pat:/crane|rigging|lift.*crane|crane.*service/i, sv:'crane_rigging'},
-    {pat:/aerial.?lift|boom.?lift|scissor.?lift|man.?lift|jlg|genie.*lift|sky.?lift/i, sv:'aerial_lift'},
-    {pat:/excavat|backhoe|bulldoz|grader|earthmov|earthwork|grading/i, sv:'excavation'},
-    {pat:/scaffold/i, sv:'scaffolding'},
-    {pat:/generator|power.?equip|genset/i, sv:'generator'},
-    {pat:/forklift|pallet.?jack|telehandler|reach.?truck/i, sv:'forklift'},
-    {pat:/compactor|paving|asphalt|roller|plate.?compact/i, sv:'compactor_paving'},
-  ],
-  dumpster: [
-    {pat:/roll.?off|rolloff|container.?rental/i, sv:'rolloff'},
-    {pat:/commercial.?waste|commercial.*dumpster/i, sv:'commercial_waste'},
-    {pat:/debris|cleanup|clean.?up|hauling/i, sv:'debris_removal'},
-  ],
-  porta_potty: [
-    {pat:/event|festival|wedding|concert|fair|outdoor.?event/i, sv:'event_san'},
-    {pat:/luxury|restroom.?trailer|vip.?restroom|upscale/i, sv:'luxury_restroom'},
-    {pat:/construction|jobsite|job.?site|worksite/i, sv:'construction_san'},
-  ],
-  waste: [
-    {pat:/recycle|recycling|e.?waste|e-waste/i, sv:'recycling'},
-    {pat:/hazardous|industrial.?waste|chemical.?waste|medical.?waste/i, sv:'hazardous'},
-    {pat:/transfer.?station/i, sv:'transfer_station'},
-    {pat:/municipal|commercial.?collect|residential.?collect/i, sv:'municipal'},
-  ],
-  propane: [
-    {pat:/heating.?oil|fuel.?oil|home.?heat/i, sv:'heating_oil'},
-    {pat:/bulk.?fuel|diesel|fleet.?fuel/i, sv:'bulk_fuel'},
-    {pat:/commercial|industrial.*propane|business.*propane/i, sv:'commercial_lp'},
-    {pat:/residential|home.*propane|propane.?deliver/i, sv:'residential_lp'},
-  ],
-  septic: [
-    {pat:/grease.?trap|grease.?interceptor/i, sv:'grease_trap'},
-    {pat:/drain.?clean|hydro.?jet|rooter|roto.?root/i, sv:'drain_clean'},
-    {pat:/septic|cesspool|holding.?tank/i, sv:'septic_pump'},
-  ],
-  junk_removal: [
-    {pat:/estate|cleanout|clean.?out/i, sv:'estate_cleanout'},
-    {pat:/commercial|office|business|corporate/i, sv:'commercial_junk'},
-  ],
-};
-
-function getSubVertical(vertical, co){
-  if(!vertical||vertical==='other')return null;
-  const rules=SUB_RULES[vertical];
-  if(!rules)return null;
-  const combined=(co.categories||'')+' '+(co.name||'')+' '+(co.description||'');
-  for(const rule of rules){
-    if(rule.pat.test(combined))return rule.sv;
-  }
-  // Default sub-verticals
-  const defaults={equipment:'general_tool',dumpster:'rolloff',porta_potty:'construction_san',
-    waste:'municipal',propane:'residential_lp',septic:'septic_pump',junk_removal:'residential_junk'};
-  return defaults[vertical]||null;
-}
-
-function subVertLabel(vertical, sv){
-  if(!vertical||!sv)return null;
-  return SUB_VERTICALS[vertical]?.[sv]?.label||null;
-}
 
 /* ══════════════════════════════════════════
    CLASSIFICATION
 ══════════════════════════════════════════ */
 /* ══════════════════════════════════════════
-   TIERED CLASSIFIER — cheap-first approach
-   Tier 1: SIC/NAICS lookup (free)
-   Tier 2: Category keywords (free)
-   Tier 3: Name keywords (free)
-   Tier 4: Claude API (only for ambiguous)
+   VERTICAL KEYWORD FILTER
+   Used at import time to filter leadscraper rows.
+   Category OR name must match to be kept.
+   Add a new vertical: add an entry below.
 ══════════════════════════════════════════ */
-
-// SIC → vertical mappings (most common codes in PFG verticals)
-const SIC_MAP={
-  // Equipment rental
-  '7359':'equipment','73590':'equipment','7353':'equipment','73530':'equipment',
-  '5082':'equipment','50820':'equipment','5084':'equipment','7369':'equipment',
-  // Dumpster / waste hauling
-  '4953':'dumpster','49530':'dumpster','4959':'waste','49590':'waste',
-  '5093':'waste','50930':'waste',
-  // Porta potty / sanitation
-  '7699':'porta_potty','76990':'porta_potty','7389':'porta_potty',
-  '4959':'waste',
-  // Septic / drain
-  '1711':'septic','17110':'septic','7692':'septic','76920':'septic',
-  '1731':'septic',
-  // Propane / fuel
-  '5984':'propane','59840':'propane','5171':'propane','51710':'propane',
-  '5172':'propane','51720':'propane','5983':'propane',
-  // Waste management
-  '4212':'waste','42120':'waste','4213':'waste','4214':'waste',
-  '4215':'waste','4911':'waste',
-  // Junk removal
-  '4212':'junk_removal', // overlap — categories will disambiguate
+const VERTICAL_FILTER = {
+  porta_potty: {
+    catKws: ['portable toilet','portable restroom','portable sanitation','sanitation service','portable building','toilet rental','party equipment rental','restroom trailer'],
+    nameKws: ['porta pot','porta john','portable toilet','portable restroom','sanitation','port-a-pot','port a pot'],
+  },
+  dumpster: {
+    catKws: ['dumpster rental','roll-off','rolloff','container rental','waste container','debris removal','roll off'],
+    nameKws: ['dumpster','roll-off','rolloff','roll off'],
+  },
+  junk_removal: {
+    catKws: ['junk removal','junk hauling','estate cleanout','hauling service','rubbish removal','trash removal','junk'],
+    nameKws: ['junk removal','junk hauling','got junk','junk king','college hunks'],
+  },
+  equipment: {
+    catKws: ['equipment rental','equipment rental agency','crane service','aerial lift','boom lift','forklift rental','excavation','skid steer','scaffolding','generator rental','construction equipment','heavy equipment'],
+    nameKws: ['equipment rental','tool rental','crane rental','lift rental','sunbelt rentals','united rentals','herc rental'],
+  },
+  propane: {
+    catKws: ['propane supplier','propane','lp gas','fuel supplier','heating oil','fuel delivery','gas supplier','propane dealer'],
+    nameKws: ['propane','lp gas','heating oil','fuel oil'],
+  },
+  septic: {
+    catKws: ['septic system service','septic tank','drain cleaning','grease trap','cesspool','septic pump','septic service'],
+    nameKws: ['septic','cesspool','drain clean','grease trap'],
+  },
+  waste: {
+    catKws: ['waste management service','garbage collection','recycling center','transfer station','landfill','solid waste','refuse collection'],
+    nameKws: ['waste management','republic services','casella','rumpke','waste connections'],
+  },
+  c_stores: {
+    catKws: ['convenience store','gas station','fuel station','truck stop','travel plaza','service station'],
+    nameKws: ['caseys','circle k','wawa','sheetz','pilot flying','loves travel','kwik trip','7-eleven'],
+  },
 };
 
-// NAICS → vertical
-const NAICS_MAP={
-  // Equipment rental
-  '532412':'equipment','532310':'equipment','532420':'equipment','532490':'equipment',
-  '5324':'equipment','53241':'equipment',
-  // Waste collection / dumpster
-  '562111':'dumpster','562112':'waste','562119':'waste','5621':'waste',
-  '562920':'waste','562991':'waste',
-  // Porta potty / sanitation services
-  '562991':'porta_potty','56299':'porta_potty',
-  // Septic
-  '562991':'septic','238910':'septic','2389':'septic',
-  // Propane
-  '454310':'propane','42471':'propane','424710':'propane','447190':'propane',
-  // Junk / moving / hauling
-  '484210':'junk_removal','4842':'junk_removal','562119':'junk_removal',
-};
-
-// Category keyword → vertical (checked against Google Maps categories string)
-const CAT_RULES=[
-  // Most specific first
-  {pat:/roll.?off|dumpster.?rental|container.?rental|rolloff/i, v:'dumpster', conf:'high'},
-  {pat:/porta.?pott|portable.?toilet|portable.?restroom|portable.?sanitation|toilet.?rental/i, v:'porta_potty', conf:'high'},
-  {pat:/septic.?tank|drain.?clean|grease.?trap|cesspool|septic.?pump/i, v:'septic', conf:'high'},
-  {pat:/propane|lp.?gas|fuel.?oil|heating.?oil|diesel.?fuel.?deliver/i, v:'propane', conf:'high'},
-  {pat:/junk.?remov|junk.?haul|estate.?clean|debris.?remov|hauling.?service/i, v:'junk_removal', conf:'high'},
-  {pat:/equipment.?rent|heavy.?equipment|crane.?rent|forklift.?rent|aerial.?lift|boom.?lift|excavat.*rent|skid.?steer/i, v:'equipment', conf:'high'},
-  {pat:/waste.?manag|garbage.?collect|trash.?collect|recycl.*facilit|transfer.?station|landfill/i, v:'waste', conf:'high'},
-  // Medium confidence
-  {pat:/dumpster|roll.?off/i, v:'dumpster', conf:'medium'},
-  {pat:/sanitation/i, v:'porta_potty', conf:'medium'},
-  {pat:/septic/i, v:'septic', conf:'medium'},
-  {pat:/propane|fuel.?deliver/i, v:'propane', conf:'medium'},
-  {pat:/junk.?removal|junk removal/i, v:'junk_removal', conf:'medium'},
-  {pat:/equipment.?rental|tool.?rental/i, v:'equipment', conf:'medium'},
-  {pat:/waste.?collect|refuse.?collect/i, v:'waste', conf:'medium'},
+// Filename → suggested vertical mapping
+const FILENAME_VERTICAL = [
+  {pat:/porta|portable.?toilet|portable.?restroom/i, v:'porta_potty'},
+  {pat:/dumpster|roll.?off|rolloff/i, v:'dumpster'},
+  {pat:/junk|hauling|junk.?remov/i, v:'junk_removal'},
+  {pat:/equipment|crane|aerial.?lift|forklift/i, v:'equipment'},
+  {pat:/propane|lp.?gas|heating.?oil/i, v:'propane'},
+  {pat:/septic|drain|grease.?trap/i, v:'septic'},
+  {pat:/waste|garbage|refuse|recycl/i, v:'waste'},
+  {pat:/c.?store|convenience|gas.?station/i, v:'c_stores'},
 ];
 
-// Company NAME keyword rules (lower confidence — names can be misleading)
-const NAME_RULES=[
-  {pat:/roll.?off|dumpster/i, v:'dumpster', conf:'medium'},
-  {pat:/porta.?pott|port.?a.?john|port.?a.?pot|sanipot|sanitation.?station/i, v:'porta_potty', conf:'medium'},
-  {pat:/septic|drain.?king|roto.?root|drainpro/i, v:'septic', conf:'low'},
-  {pat:/propane|lp.?gas/i, v:'propane', conf:'medium'},
-  {pat:/junk.?king|junk.?removal|got.?junk|junk.?pro|college.?hunk/i, v:'junk_removal', conf:'high'},
-  {pat:/waste.?connect|waste.?manag|republic.?service|casella|rumpke/i, v:'waste', conf:'high'},
-  {pat:/equipment.?rental|tool.?rental|sunbelt|united.?rental|herc.?rent/i, v:'equipment', conf:'high'},
-];
-
-// Global exclusions — these SIC/NAICS/categories indicate clearly wrong verticals
-// that should be marked other immediately regardless of name keywords
-const GLOBAL_EXCLUDE_SIC={
-  '52':'retail','53':'retail','54':'retail','55':'retail','56':'retail',
-  '57':'retail','58':'restaurant','59':'retail',
-  '60':'financial','61':'financial','62':'financial','63':'insurance','64':'insurance',
-  '70':'hotel','72':'personal_service','73':'business_service','75':'auto',
-  '78':'entertainment','79':'entertainment','80':'medical','81':'legal',
-  '82':'education','83':'social_service','84':'museum','86':'membership',
-  '87':'professional','88':'private_household',
-};
-const GLOBAL_EXCLUDE_CATS=/^(retail|grocery|supermarket|restaurant|cafe|food|hotel|motel|lodging|school|hospital|clinic|medical|dental|financial|bank|insurance|law|attorney|real estate|apartment|clothing|fashion|jewelry|furniture|electronics|auto dealer|car dealer|dealership|museum|library|church|religious)/i;
-
-function tierClassify(co){
-  const sic=(co.sic||'').replace(/[^0-9]/g,'').slice(0,5);
-  const naics=(co.naics||'').replace(/[^0-9]/g,'').slice(0,6);
-  const cats=co.categories||'';
-  const name=co.name||'';
-
-  // Pre-check: global exclusions — clearly not in our verticals
-  if(sic){
-    const prefix2=sic.slice(0,2);
-    if(GLOBAL_EXCLUDE_SIC[prefix2]){
-      return{vertical:'other',confidence:'high',reason:`Not a target vertical (SIC ${sic} = ${GLOBAL_EXCLUDE_SIC[prefix2]})`,tier:1,excluded:true,excludedFrom:'global'};
-    }
+function detectVerticalFromFilename(filename){
+  for(const {pat,v} of FILENAME_VERTICAL){
+    if(pat.test(filename))return v;
   }
-  if(cats&&GLOBAL_EXCLUDE_CATS.test(cats.split(',')[0].trim())){
-    return{vertical:'other',confidence:'high',reason:`Not a target vertical (${cats.split(',')[0].trim()})`,tier:2,excluded:true,excludedFrom:'global'};
-  }
-
-  // Tier 1: SIC (from dynamic config)
-  if(sic){
-    const v=SIC_MAP_DYN[sic]||SIC_MAP_DYN[sic.slice(0,4)]||SIC_MAP_DYN[sic.slice(0,3)];
-    if(v)return{vertical:v,confidence:'high',reason:`SIC ${sic}`,tier:1};
-  }
-  // Tier 1b: NAICS (from dynamic config)
-  if(naics){
-    const v=NAICS_MAP_DYN[naics]||NAICS_MAP_DYN[naics.slice(0,5)]||NAICS_MAP_DYN[naics.slice(0,4)];
-    if(v)return{vertical:v,confidence:'high',reason:`NAICS ${naics}`,tier:1};
-  }
-  const combined=cats+' '+name+' '+(co.description||'');
-  // Tier 2: Category keywords + exclusion check
-  for(const rule of CAT_RULES_DYN){
-    if(rule.pat.test(cats)){
-      const excRules=VERTICALS_CONFIG[rule.v]?.excludeRules||[];
-      const excMatch=excRules.find(ep=>ep.test(combined));
-      if(excMatch){
-        // Tag as excluded so we can find it later — don't just ignore
-        const excReason=(combined.match(excMatch)||[''])[0].slice(0,40);
-        return{vertical:'other',confidence:'high',reason:`Excluded from ${rule.v}: "${excReason}"`,tier:2,excluded:true,excludedFrom:rule.v};
-      }
-      return{vertical:rule.v,confidence:rule.conf,reason:`Category: ${(cats.match(rule.pat)||[''])[0].slice(0,30)}`,tier:2};
-    }
-  }
-  // Tier 3: Name keywords + exclusion check
-  for(const rule of NAME_RULES_DYN){
-    if(rule.pat.test(name)){
-      const excRules=VERTICALS_CONFIG[rule.v]?.excludeRules||[];
-      const excMatch=excRules.find(ep=>ep.test(combined));
-      if(excMatch){
-        const excReason=(combined.match(excMatch)||[''])[0].slice(0,40);
-        return{vertical:'other',confidence:'high',reason:`Excluded from ${rule.v}: "${excReason}"`,tier:3,excluded:true,excludedFrom:rule.v};
-      }
-      return{vertical:rule.v,confidence:rule.conf,reason:`Name: ${(name.match(rule.pat)||[''])[0].slice(0,30)}`,tier:3};
-    }
-  }
-  // Needs API
   return null;
 }
 
-function tierClassifyFull(co){
-  const result=tierClassify(co);
-  if(result){
-    result.sub_vertical=getSubVertical(result.vertical,co);
-  }
-  return result;
+function rowPassesVerticalFilter(vertical, catStr, nameStr){
+  const f=VERTICAL_FILTER[vertical];
+  if(!f)return true; // unknown vertical — let everything through
+  const cats=(catStr||'').toLowerCase();
+  const name=(nameStr||'').toLowerCase();
+  return f.catKws.some(k=>cats.includes(k))||f.nameKws.some(k=>name.includes(k));
 }
+
+
 
 
 const SYS=`You classify companies into B2B sales verticals for a decal and print company. Precision matters.
@@ -2547,42 +2411,16 @@ async function startClassify(){
     const{data:cos}=await sbClient.from('companies').select('id,name,categories,description,sic,naics').eq('status','pending').limit(Math.min(fSz,sessionTotal-sessionDone));if(!cos||!cos.length)break;
     await sbClient.from('companies').update({status:'processing'}).in('id',cos.map(c=>c.id));
 
-    // ── TIER 1-3: rule-based (free, instant) ──
-    const ruleResults=[];const needsAPI=[];
-    cos.forEach(co=>{
-      const r=tierClassifyFull(co);
-      if(r){ruleResults.push({id:co.id,...r});tierCounts['t'+r.tier]=(tierCounts['t'+r.tier]||0)+1;} 
-      else needsAPI.push(co);
-    });
-
-    // Write rule-based results immediately
-    if(ruleResults.length){
-      const writes=ruleResults.map(r=>{
-        const isExcluded=r.excluded===true;
-        // Excluded companies: tag='excluded:vertical', status=done so they don't re-queue
-        const existingTags=allBrowse.find(co=>co.id===r.id)?.tags||'';
-        const tagParts=existingTags.split(',').filter(t=>t&&!t.startsWith('excluded'));
-        if(isExcluded)tagParts.push(`excluded:${r.excludedFrom}`);
-        return sbClient.from('companies').update({
-          vertical:r.vertical,sub_vertical:r.sub_vertical||null,
-          confidence:r.confidence,reason:r.reason,
-          tags:tagParts.length?tagParts.join(','):null,
-          status:'done', // done so it doesn't re-queue, but tagged for future reference
-          classified_at:new Date().toISOString()
-        }).eq('id',r.id);
-      });
-      for(let i=0;i<writes.length;i+=200)await Promise.all(writes.slice(i,i+200));
-    }
-
-    // ── TIER 4: Claude API only for ambiguous ──
+    // All pending companies go to API — leadscraper rows are pre-classified at import
+    const needsAPI=cos;
     if(needsAPI.length){
       tierCounts.api+=needsAPI.length;
-      setLane(0,'active',`API: ${needsAPI.length} ambiguous...`);
+      setLane(0,'active',`API: ${needsAPI.length} companies...`);
       const chunks=[];for(let i=0;i<needsAPI.length;i+=bSz)chunks.push(needsAPI.slice(i,i+bSz));
       const useGPT=document.querySelector('input[name="classify-api"]:checked')?.value==='gpt4mini';
       const apiFn=useGPT?(ch)=>callAPIGPT(ch):(ch)=>callAPI(ch,ant);
       const results=await Promise.allSettled(chunks.map((ch,i)=>apiFn(ch).then(r=>{setLane(i,'done',`✓ ${ch.length} [${useGPT?'GPT':'AI'}]`);return r;}).catch(e=>{setLane(i,'err','Error');throw e;})));
-      const apiWrites=[];chunks.forEach((chunk,ci)=>{const res=results[ci];chunk.forEach((co,j)=>{if(res.status==='fulfilled'){const r=res.value[j]||{vertical:'other',confidence:'low',reason:'parse error'};const st=r.confidence==='low'?'needs_review':'done';const sv=getSubVertical(r.vertical,co);apiWrites.push(sbClient.from('companies').update({vertical:r.vertical,sub_vertical:sv||null,confidence:r.confidence,reason:'[AI] '+r.reason,status:st,classified_at:new Date().toISOString()}).eq('id',co.id));}else apiWrites.push(sbClient.from('companies').update({status:'error',reason:res.reason?.message||'API error'}).eq('id',co.id));});});
+      const apiWrites=[];chunks.forEach((chunk,ci)=>{const res=results[ci];chunk.forEach((co,j)=>{if(res.status==='fulfilled'){const r=res.value[j]||{vertical:'other',confidence:'low',reason:'parse error'};const st=r.confidence==='low'?'needs_review':'done';apiWrites.push(sbClient.from('companies').update({vertical:r.vertical,confidence:r.confidence,reason:'[AI] '+r.reason,status:st,classified_at:new Date().toISOString()}).eq('id',co.id));}else apiWrites.push(sbClient.from('companies').update({status:'error',reason:res.reason?.message||'API error'}).eq('id',co.id));});});
       for(let i=0;i<apiWrites.length;i+=200)await Promise.all(apiWrites.slice(i,i+200));
     }
 
@@ -2593,8 +2431,8 @@ async function startClassify(){
   }
   const elapsed=((Date.now()-sessionStart)/1000).toFixed(0);
   const apiSavings=sessionDone>0?Math.round((1-(tierCounts.api||0)/sessionDone)*100):0;
-  if(!shouldPause)addLog(`Done — ${sessionDone.toLocaleString()} in ${elapsed}s | SIC/NAICS: ${tierCounts.t1||0} | Categories: ${tierCounts.t2||0} | Name: ${tierCounts.t3||0} | API: ${tierCounts.api||0} | ${apiSavings}% free`,'done');
-  toast(shouldPause?`Paused at ${sessionDone}`:`Done — ${sessionDone.toLocaleString()} classified · ${apiSavings}% used free rules`,'ok');
+  if(!shouldPause)addLog(`Done — ${sessionDone.toLocaleString()} classified in ${elapsed}s | API calls: ${tierCounts.api||0}`,'done');
+  toast(shouldPause?`Paused at ${sessionDone}`:`Done — ${sessionDone.toLocaleString()} classified`,'ok');
   resetProcUI();loadDash();loadBrowse();
 }
 function pauseClassify(){shouldPause=true;document.getElementById('btn-pause').disabled=true;addLog('Pausing...','info');}
@@ -2641,7 +2479,7 @@ async function loadBrowse(){
   // Paginate companies to bypass project row limit
   let allCoData=[];let coOffset=0;
   while(true){
-    const{data:page}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,sub_vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count,created_at').order('created_at',{ascending:false}).range(coOffset,coOffset+999);
+    const{data:page}=await sbClient.from('companies').select('id,name,website,state,city,categories,description,sic,naics,vertical,confidence,reason,status,contact_first_name,contact_last_name,contact_email,linkedin,source_file,location_count,tags,revenue,employees,founded,score_override,inst_status,inst_campaign,inst_last_contacted,inst_contacted_count,created_at').order('created_at',{ascending:false}).range(coOffset,coOffset+999);
     if(!page||!page.length)break;
     allCoData.push(...page);
     if(page.length<1000)break;
@@ -2687,8 +2525,7 @@ function filterBrowse(){
   let rows=allBrowse;
   if(q)rows=rows.filter(r=>(r.name||'').toLowerCase().includes(q)||(r.website||'').toLowerCase().includes(q)||(r.state||'').toLowerCase().includes(q));
   if(v)rows=rows.filter(r=>r.vertical===v);
-  const sv=document.getElementById('br-subvert')?.value||'';
-  if(sv)rows=rows.filter(r=>r.sub_vertical===sv);
+
   if(s)rows=rows.filter(r=>r.status===s);
   if(st)rows=rows.filter(r=>(r.state||'').toUpperCase()===st);
   if(srcF)rows=rows.filter(r=>r.source_file===srcF);
@@ -2759,15 +2596,6 @@ async function deleteNoWebsite(){if(!sbClient)return;const{data}=await sbClient.
 // BULK
 function toggleRowSelect(id,cb){if(cb.checked)selectedRows.add(id);else selectedRows.delete(id);const tr=document.getElementById('brow-'+id);if(tr)tr.classList.toggle('selected',cb.checked);updateBulkBar();}
 function toggleSelectAll(cb){const tbl=document.getElementById('br-table');tbl.querySelectorAll('tbody tr').forEach(tr=>{const rowId=tr.id.replace('brow-','');const checkbox=tr.querySelector('input[type=checkbox]');if(checkbox){checkbox.checked=cb.checked;if(cb.checked)selectedRows.add(rowId);else selectedRows.delete(rowId);tr.classList.toggle('selected',cb.checked);}});updateBulkBar();}
-function updateSubVertFilter(){
-  const v=document.getElementById('br-vert').value;
-  const sel=document.getElementById('br-subvert');
-  if(!sel)return;
-  if(!v||!SUB_VERTICALS[v]){sel.style.display='none';sel.value='';return;}
-  const subs=SUB_VERTICALS[v];
-  sel.innerHTML='<option value="">All Sub-Verticals</option>'+Object.entries(subs).map(([k,s])=>`<option value="${k}">${s.label}</option>`).join('');
-  sel.style.display='';
-}
 
 function updateBulkBar(){const n=selectedRows.size;document.getElementById('bulk-bar').classList.toggle('show',n>0);document.getElementById('bulk-count').textContent=`${n} selected`;}
 function clearBulk(){selectedRows.clear();updateBulkBar();filterBrowse();}
@@ -2795,13 +2623,11 @@ async function openDrawer(id){
     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Override</div><div style="display:flex;gap:6px;align-items:center"><input type="number" id="dr-score-override" min="0" max="100" value="${isOverride?co.score_override:''}" placeholder="auto" style="background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:5px 8px;color:var(--text);font-family:var(--mono);font-size:13px;width:72px;outline:none;text-align:center"/><button class="btn btn-o btn-sm" onclick="saveScoreOverride('${id}')">Set</button>${isOverride?`<button class="btn btn-g btn-sm" onclick="clearScoreOverride('${id}')">Clear</button>`:''}</div><div style="font-size:10px;color:var(--muted2)">0–100, blank = auto</div></div>
   </div>`;
   if(co.inst_status){const instColor=co.inst_status==='replied'?'var(--green)':co.inst_status==='bounced'||co.inst_status==='unsubscribed'?'var(--red)':'var(--yellow)';const instEmoji=co.inst_status==='replied'?'💬':co.inst_status==='bounced'?'❌':co.inst_status==='unsubscribed'?'🚫':'📤';const lastDate=co.inst_last_contacted?new Date(co.inst_last_contacted).toLocaleDateString():'unknown date';html+=`<div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.3);border-radius:8px;padding:12px 14px;margin-bottom:16px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div style="font-family:var(--mono);font-size:10px;font-weight:700;color:${instColor};letter-spacing:.08em;text-transform:uppercase">${instEmoji} Already in Instantly</div><span style="font-family:var(--mono);font-size:10px;color:var(--muted)">${co.inst_contacted_count||0} contact${(co.inst_contacted_count||0)!==1?'s':''} emailed</span></div><div style="font-size:12px;color:var(--muted)">Status: <strong style="color:${instColor}">${co.inst_status}</strong> · Last: <strong style="color:var(--text)">${lastDate}</strong></div>${co.inst_campaign?`<div style="font-size:11px;color:var(--muted);margin-top:3px;font-family:var(--mono)">Campaign: ${esc(co.inst_campaign)}</div>`:''}</div>`;}
-  const svLabel=co.sub_vertical&&co.vertical&&SUB_VERTICALS[co.vertical]?.[co.sub_vertical]?SUB_VERTICALS[co.vertical][co.sub_vertical].label:null;
-  html+=`<div class="dr-section"><h4>Vertical</h4>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">${Object.entries(V).map(([k,v])=>`<button class="vp" style="${co.vertical===k?`background:${v.color};color:#000;border-color:${v.color}`:''}" onclick="drawerSetVert('${id}','${k}')">${v.emoji} ${v.label.split('/')[0]}</button>`).join('')}</div>
-    ${(co.tags||'').includes('excluded:')?`<div style="font-size:11px;color:var(--muted);padding:6px 0">This company was auto-excluded. Assigning a vertical above will un-exclude it.</div>`:''}
-    ${svLabel?`<div style="margin-bottom:8px"><span style="font-family:var(--mono);font-size:10px;color:var(--muted)">Sub-vertical: </span><span style="font-family:var(--mono);font-size:10px;padding:2px 8px;background:var(--s3);border:1px solid var(--bd2);border-radius:4px;color:var(--text)">${esc(svLabel)}</span></div>`:''}
-    ${co.vertical&&SUB_VERTICALS[co.vertical]?`<div style="margin-bottom:8px"><span style="font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Change Sub-vertical</span><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">${Object.entries(SUB_VERTICALS[co.vertical]).map(([k,s])=>`<button class="vp" style="font-size:9px;padding:3px 8px;${co.sub_vertical===k?`background:${s.color};color:#000;border-color:${s.color}`:''}" onclick="drawerSetSubVert('${id}','${k}')">${esc(s.label)}</button>`).join('')}</div></div>`:''}
-    ${co.confidence?`<div style="font-size:11px;color:var(--muted)">Confidence: <span style="color:${co.confidence==='high'?'var(--green)':co.confidence==='medium'?'var(--yellow)':'var(--red)'}">${co.confidence}</span> · ${esc(co.reason||'')}</div>`:''}</div>`;
+  // Vertical section
+  html+=`<div class="dr-section"><div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">VERTICAL</div>`;
+  html+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${Object.entries(V).map(([k,v])=>`<button class="vp" style="${co.vertical===k?`background:${v.color};color:#000;border-color:${v.color}`:''}" onclick="drawerSetVert('${id}','${k}')">${v.emoji} ${v.label.split('/')[0]}</button>`).join('')}</div>`;
+  if(co.confidence)html+=`<div style="font-size:11px;color:var(--muted)">Confidence: <span style="color:${co.confidence==='high'?'var(--green)':co.confidence==='medium'?'var(--yellow)':'var(--red)'}">${co.confidence}</span>${co.reason?' &middot; '+esc(co.reason):''}</div>`;
+  html+=`</div>`;
   html+=`<div class="dr-section"><h4>Company Details</h4><div class="dr-grid">`;
   [['Website',co.website?`<a href="https://${esc(co.website)}" target="_blank">${esc(co.website)}</a>`:null,'link'],['State',co.state],['City',co.city],['Revenue',co.revenue],['Employees',co.employees],['Locations',(co.location_count||1)>1?String(co.location_count):null],['SIC',co.sic],['NAICS',co.naics],['LinkedIn',co.linkedin?`<a href="${esc(co.linkedin)}" target="_blank" style="color:var(--blue)">${esc(co.linkedin.replace('https://www.linkedin.com/','li.com/'))}</a>`:null,'link'],['Source',co.source_file]].forEach(([l,val,cls])=>{if(val)html+=`<div class="dr-field"><div class="dl">${l}</div><div class="dv ${cls||'mono'}">${val}</div></div>`;});html+=`</div>`;
   if(co.categories)html+=`<div class="dr-field" style="margin-bottom:8px"><div class="dl">Categories</div><div class="dv" style="font-size:11px;color:var(--cyan)">${esc(co.categories)}</div></div>`;
@@ -2820,12 +2646,6 @@ async function openDrawer(id){
   document.getElementById('dr-body').innerHTML=html;
   // FIX 3: Auto-check Instantly for contacts with no synced status
   if(sessionStorage.getItem('inst_key')){drContacts.forEach((c,i)=>{if(c.email&&!c.instantly_status){const targetEl=document.getElementById('ict-'+i);if(targetEl)instCheckContact(c.email,targetEl);}});}
-}
-async function drawerSetSubVert(id, sv){
-  await sbClient.from('companies').update({sub_vertical:sv}).eq('id',id);
-  allBrowse=allBrowse.map(r=>r.id===id?{...r,sub_vertical:sv}:r);
-  toast('Sub-vertical → '+(SUB_VERTICALS[allBrowse.find(r=>r.id===id)?.vertical]?.[sv]?.label||sv),'ok');
-  openDrawer(id);
 }
 
 async function drawerSetVert(id,v){
