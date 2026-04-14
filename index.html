@@ -942,7 +942,7 @@ Return ONLY a valid JSON array — no markdown, no text before or after.`;
 }
 
 const STATES=['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
-const NATIONAL_CHAINS=['united rentals','sunbelt rentals','herc rentals','ahern rentals','blueline rental','waste management','republic services','clean harbors','stericycle','casella waste','covanta','us ecology','advanced disposal','safety kleen','heritage crystal clean','harsco','maxim crane','bigge crane','neff','brambles','h&e equipment','rumpke','waste connections','enviri','clean earth','us waste industries','lhoist','recology','gfl environmental','gfl','granite waste','meridian waste','home depot','lowes','fastenal','uhaul','penske truck','ryder'];
+const NATIONAL_CHAINS=['container store','home depot','lowes','target','walmart','costco','united rentals','sunbelt rentals','herc rentals','ahern rentals','blueline rental','waste management','republic services','clean harbors','stericycle','casella waste','covanta','us ecology','advanced disposal','safety kleen','heritage crystal clean','harsco','maxim crane','bigge crane','neff','brambles','h&e equipment','rumpke','waste connections','enviri','clean earth','us waste industries','lhoist','recology','gfl environmental','gfl','granite waste','meridian waste','home depot','lowes','fastenal','uhaul','penske truck','ryder'];
 const GOVT_PATTERN=/\b(township|county\s+of|city\s+of|town\s+of|village\s+of|borough\s+of|dept\.?\s+of|department\s+of|authority|municipal|municipality|district|public\s+works|sanitation\s+dept|public\s+utility|utility\s+district|state\s+of)\b/i;
 const GENERIC_EMAIL_PREFIXES=new Set(['info','contact','admin','hello','support','sales','office','mail','inquiry','inquiries','general','webmaster','help','noreply','no-reply','team','billing','accounts','reception','service','customerservice','cs','hr','marketing','pr','operations','ops','manager','owners','leasing','rentals','dispatch','accounting','bookkeeping']);
 
@@ -951,7 +951,14 @@ function parseRevenue(str){if(!str)return 0;const s=str.replace(/[$,\s<>~≈]/g,
 function parseEmployees(str){if(!str)return 0;const n=parseInt((str||'').replace(/[^0-9]/g,''));return isNaN(n)?0:n;}
 function isGenericEmail(email){if(!email)return false;const prefix=(email.split('@')[0]||'').toLowerCase().replace(/[._\-+]/g,'');return GENERIC_EMAIL_PREFIXES.has(prefix);}
 function detectTags(name,revenue,employees){const tags=[];const nameLow=(name||'').toLowerCase();if(NATIONAL_CHAINS.some(c=>nameLow.includes(c)))tags.push('enterprise');if(!tags.includes('enterprise')&&(parseRevenue(revenue)>50000000||parseEmployees(employees)>500))tags.push('enterprise');if(GOVT_PATTERN.test(name))tags.push('government');return tags.length?tags.join(','):null;}
-function calcScore(co){if(co.score_override!=null&&co.score_override>=0)return Math.min(co.score_override,100);let s=0;const rev=parseRevenue(co.revenue);if(rev>=5000000)s+=25;else if(rev>=1000000)s+=18;else if(rev>=500000)s+=10;else if(rev>0)s+=4;const emp=parseEmployees(co.employees);if(emp>=50)s+=20;else if(emp>=20)s+=14;else if(emp>=10)s+=8;else if(emp>=5)s+=4;const locs=co.location_count||1;if(locs>=3)s+=15;else if(locs>=2)s+=8;const yr=parseInt(co.founded)||0;if(yr>0&&yr<=2010)s+=10;else if(yr>2010&&yr<=2018)s+=6;else if(yr>2018)s+=2;const email=(co.contact_email||'').toLowerCase();const hasName=co.contact_first_name&&co.contact_last_name;const generic=isGenericEmail(email);if(email&&hasName&&!generic)s+=15;else if(email&&!generic)s+=8;else if(email&&generic)s+=3;if(co.linkedin)s+=5;if(co.description)s+=2;return Math.min(s,100);}
+function calcScore(co){
+  if(co.score_override!=null&&co.score_override>=0)return Math.min(co.score_override,100);
+  const tags=(co.tags||'').split(',');
+  if(tags.includes('enterprise'))return 15;  // national chain — not a prospect
+  if(tags.includes('government'))return 5;   // govt — not a prospect
+  if(co.vertical==='other'||!co.vertical)return 10; // unclassified — needs review
+  if(tags.some(t=>t.startsWith('excluded')))return 8; // excluded — future only
+  let s=0;const rev=parseRevenue(co.revenue);if(rev>=5000000)s+=25;else if(rev>=1000000)s+=18;else if(rev>=500000)s+=10;else if(rev>0)s+=4;const emp=parseEmployees(co.employees);if(emp>=50)s+=20;else if(emp>=20)s+=14;else if(emp>=10)s+=8;else if(emp>=5)s+=4;const locs=co.location_count||1;if(locs>=3)s+=15;else if(locs>=2)s+=8;const yr=parseInt(co.founded)||0;if(yr>0&&yr<=2010)s+=10;else if(yr>2010&&yr<=2018)s+=6;else if(yr>2018)s+=2;const email=(co.contact_email||'').toLowerCase();const hasName=co.contact_first_name&&co.contact_last_name;const generic=isGenericEmail(email);if(email&&hasName&&!generic)s+=15;else if(email&&!generic)s+=8;else if(email&&generic)s+=3;if(co.linkedin)s+=5;if(co.description)s+=2;return Math.min(s,100);}
 function scoreTier(score){if(score>=70)return{tier:'A',emoji:'🔥',color:'#ef4444'};if(score>=45)return{tier:'B',emoji:'✅',color:'#22c55e'};if(score>=20)return{tier:'C',emoji:'⚠️',color:'#eab308'};return{tier:'D',emoji:'❄️',color:'#64748b'};}
 
 /* ── MULTI-FILE STATE ── */
@@ -2392,11 +2399,35 @@ const NAME_RULES=[
   {pat:/equipment.?rental|tool.?rental|sunbelt|united.?rental|herc.?rent/i, v:'equipment', conf:'high'},
 ];
 
+// Global exclusions — these SIC/NAICS/categories indicate clearly wrong verticals
+// that should be marked other immediately regardless of name keywords
+const GLOBAL_EXCLUDE_SIC={
+  '52':'retail','53':'retail','54':'retail','55':'retail','56':'retail',
+  '57':'retail','58':'restaurant','59':'retail',
+  '60':'financial','61':'financial','62':'financial','63':'insurance','64':'insurance',
+  '70':'hotel','72':'personal_service','73':'business_service','75':'auto',
+  '78':'entertainment','79':'entertainment','80':'medical','81':'legal',
+  '82':'education','83':'social_service','84':'museum','86':'membership',
+  '87':'professional','88':'private_household',
+};
+const GLOBAL_EXCLUDE_CATS=/^(retail|grocery|supermarket|restaurant|cafe|food|hotel|motel|lodging|school|hospital|clinic|medical|dental|financial|bank|insurance|law|attorney|real estate|apartment|clothing|fashion|jewelry|furniture|electronics|auto dealer|car dealer|dealership|museum|library|church|religious)/i;
+
 function tierClassify(co){
   const sic=(co.sic||'').replace(/[^0-9]/g,'').slice(0,5);
   const naics=(co.naics||'').replace(/[^0-9]/g,'').slice(0,6);
   const cats=co.categories||'';
   const name=co.name||'';
+
+  // Pre-check: global exclusions — clearly not in our verticals
+  if(sic){
+    const prefix2=sic.slice(0,2);
+    if(GLOBAL_EXCLUDE_SIC[prefix2]){
+      return{vertical:'other',confidence:'high',reason:`Not a target vertical (SIC ${sic} = ${GLOBAL_EXCLUDE_SIC[prefix2]})`,tier:1,excluded:true,excludedFrom:'global'};
+    }
+  }
+  if(cats&&GLOBAL_EXCLUDE_CATS.test(cats.split(',')[0].trim())){
+    return{vertical:'other',confidence:'high',reason:`Not a target vertical (${cats.split(',')[0].trim()})`,tier:2,excluded:true,excludedFrom:'global'};
+  }
 
   // Tier 1: SIC (from dynamic config)
   if(sic){
@@ -2628,12 +2659,17 @@ async function loadBrowse(){
   const data=allCoData;const ctCounts=allCtData;
   const ctMap={};(ctCounts||[]).forEach(ct=>{if(!ctMap[ct.company_id])ctMap[ct.company_id]={total:0,direct:0,generic:0};ctMap[ct.company_id].total++;if(isGenericEmail(ct.email||''))ctMap[ct.company_id].generic++;else ctMap[ct.company_id].direct++;});
   allBrowse=(data||[]).map(r=>({...r,_ctStats:ctMap[r.id]||null}));
-  // Populate source file filter
+  // Populate source file filter from loaded data
   const srcSel=document.getElementById('br-src');
   if(srcSel){
     const sources=[...new Set(allBrowse.map(r=>r.source_file).filter(Boolean))].sort();
     const curVal=srcSel.value;
-    srcSel.innerHTML='<option value="">All Sources</option>'+sources.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
+    // Tag each source with a short label: instantly vs leadscraper vs paste
+    srcSel.innerHTML='<option value="">All Sources</option>'
+      +sources.map(s=>{
+        const label=s==='instantly'?'⚡ Instantly Sync':s==='paste'?'📋 Paste':s;
+        return`<option value="${esc(s)}">${esc(label)}</option>`;
+      }).join('');
     if(curVal)srcSel.value=curVal;
   }
   selectedRows.clear();updateBulkBar();filterBrowse();
@@ -2677,7 +2713,6 @@ function filterBrowse(){
   let html=`<table style="min-width:900px"><thead><tr>
     <th style="width:28px"><input type="checkbox" id="sel-all" onclick="toggleSelectAll(this)" style="width:auto"/></th>
     ${th('name','Company')}${th('website','Website','160px')}${th('state','ST','38px')}
-    ${th('vertical','Vertical','130px')}${th('_score','Score','80px')}
     ${th('vertical','Vertical','130px')}${th('_score','Score','80px')}
     ${th('status','Status','80px')}<th style="width:36px"></th>
   </tr></thead><tbody>`;
