@@ -1974,7 +1974,11 @@ function setupDrop(zId,iId,onLoad){
 }
 
 function handleCoFiles(files){
-  coParsedFiles=[];const fileArr=[...files];let loaded=0;
+  coParsedFiles=[];
+  // Deduplicate dropped files by name (prevents double-drop on some browsers)
+  const seen=new Set();
+  const fileArr=[...files].filter(f=>{if(seen.has(f.name))return false;seen.add(f.name);return true;});
+  let loaded=0;
   const onAllDone=()=>{
     if(!coParsedFiles.length)return;
     const totalRows=coParsedFiles.reduce((s,f)=>s+f.parsed.rows.length,0);
@@ -1991,10 +1995,21 @@ function handleCoFiles(files){
     const hdr=document.getElementById('ch-import');const body=document.getElementById('cb-import');
     if(!hdr.classList.contains('open')){hdr.classList.add('open');body.classList.add('open');}
   };
-  fileArr.forEach(f=>{readFile(f,(txt,name)=>{const parsed=parseCSVText(txt);if(parsed)coParsedFiles.push({parsed,filename:name});loaded++;if(loaded===fileArr.length)onAllDone();});});
+  fileArr.forEach(f=>{readFile(f,(txt,name)=>{
+    const parsed=parseCSVText(txt);
+    if(parsed&&!coParsedFiles.some(f=>f.filename===name)){
+      coParsedFiles.push({parsed,filename:name});
+    }
+    loaded++;if(loaded===fileArr.length)onAllDone();
+  });});
 }
 function readFile(f,onLoad){
-  if(f.name.match(/\.xlsx?$/i)){const r=new FileReader();r.onload=e=>{const wb=XLSX.read(e.target.result,{type:'binary'});onLoad(XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]),f.name);toast('Loaded: '+f.name,'ok');};r.readAsBinaryString(f);}
+  if(f.name.match(/\.xlsx?$/i)){const r=new FileReader();r.onload=e=>{const wb=XLSX.read(e.target.result,{type:'binary'});
+    // Only use first sheet — ignore extra tabs
+    const sheet=wb.Sheets[wb.SheetNames[0]];
+    onLoad(XLSX.utils.sheet_to_csv(sheet),f.name);
+    toast('Loaded: '+f.name+' (sheet: '+wb.SheetNames[0]+(wb.SheetNames.length>1?' + '+(wb.SheetNames.length-1)+' tabs ignored':'')+')','ok');
+  };r.readAsBinaryString(f);}
   else{const r=new FileReader();r.onload=e=>{onLoad(e.target.result,f.name);toast('Loaded: '+f.name,'ok');};r.readAsText(f);}
 }
 
